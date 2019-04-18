@@ -23,6 +23,7 @@ import Yesod.Auth.OpenId    (authOpenId, IdentifierType (Claimed))
 import Yesod.Default.Util   (addStaticContentExternal)
 import Yesod.Core.Types     (Logger)
 import qualified Yesod.Core.Unsafe as Unsafe
+import qualified Data.Text as T (pack, unpack)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Text.Encoding as TE
 
@@ -33,20 +34,10 @@ import qualified Data.Text.Encoding as TE
 data App = App
     { appSettings    :: AppSettings
     , appStatic      :: Static -- ^ Settings for static file serving.
-    , appConnPool    :: ConnectionPool -- ^ Database connection pool.
+    --, appConnPool    :: ConnectionPool -- ^ Database connection pool.
     , appHttpManager :: Manager
     , appLogger      :: Logger
     }
-
-data MenuItem = MenuItem
-    { menuItemLabel :: Text
-    , menuItemRoute :: Route App
-    , menuItemAccessCallback :: Bool
-    }
-
-data MenuTypes
-    = NavbarLeft MenuItem
-    | NavbarRight MenuItem
 
 -- This is where we define all of the routes in our application. For a full
 -- explanation of the syntax, please see:
@@ -102,74 +93,32 @@ instance Yesod App where
         master <- getYesod
         mmsg <- getMessage
 
-        muser <- maybeAuthPair
+        --muser <- maybeAuthPair
         mcurrentRoute <- getCurrentRoute
 
         -- Get the breadcrumbs, as defined in the YesodBreadcrumbs instance.
         (title, parents) <- breadcrumbs
 
-        -- Define the menu items of the header.
-        let menuItems =
-                [ NavbarLeft $ MenuItem
-                    { menuItemLabel = "Home"
-                    , menuItemRoute = HomeR
-                    , menuItemAccessCallback = True
-                    }
-                , NavbarLeft $ MenuItem
-                    { menuItemLabel = "Profile"
-                    , menuItemRoute = ProfileR
-                    , menuItemAccessCallback = isJust muser
-                    }
-                , NavbarRight $ MenuItem
-                    { menuItemLabel = "Login"
-                    , menuItemRoute = AuthR LoginR
-                    , menuItemAccessCallback = isNothing muser
-                    }
-                , NavbarRight $ MenuItem
-                    { menuItemLabel = "Logout"
-                    , menuItemRoute = AuthR LogoutR
-                    , menuItemAccessCallback = isJust muser
-                    }
-                ]
-
-        let navbarLeftMenuItems = [x | NavbarLeft x <- menuItems]
-        let navbarRightMenuItems = [x | NavbarRight x <- menuItems]
-
-        let navbarLeftFilteredMenuItems = [x | x <- navbarLeftMenuItems, menuItemAccessCallback x]
-        let navbarRightFilteredMenuItems = [x | x <- navbarRightMenuItems, menuItemAccessCallback x]
-
-        -- We break up the default layout into two components:
-        -- default-layout is the contents of the body tag, and
-        -- default-layout-wrapper is the entire page. Since the final
-        -- value passed to hamletToRepHtml cannot be a widget, this allows
-        -- you to use normal widget features in default-layout.
-
         pc <- widgetToPageContent $ do
-            addStylesheet $ StaticR css_bootstrap_css
             $(widgetFile "default-layout")
         withUrlRenderer $(hamletFile "templates/default-layout-wrapper.hamlet")
 
     -- The page to be redirected to when authentication is required.
-    authRoute
+  {-  authRoute
         :: App
         -> Maybe (Route App)
-    authRoute _ = Just $ AuthR LoginR
+    authRoute _ = Just $ AuthR LoginR -}
 
     isAuthorized
         :: Route App  -- ^ The route the user is visiting.
         -> Bool       -- ^ Whether or not this is a "write" request.
         -> Handler AuthResult
     -- Routes not requiring authentication.
-    isAuthorized (AuthR _) _ = return Authorized
-    isAuthorized CommentR _ = return Authorized
+    --isAuthorized (AuthR _) _ = return Authorized
     isAuthorized HomeR _ = return Authorized
     isAuthorized FaviconR _ = return Authorized
     isAuthorized RobotsR _ = return Authorized
     isAuthorized (StaticR _) _ = return Authorized
-
-    -- the profile route requires that the user is authenticated, so we
-    -- delegate to that function
-    isAuthorized ProfileR _ = isAuthenticated
 
     -- This function creates static content files in the static folder
     -- and names them based on a hash of their content. This allows
@@ -216,22 +165,22 @@ instance YesodBreadcrumbs App where
         :: Route App  -- ^ The route the user is visiting currently.
         -> Handler (Text, Maybe (Route App))
     breadcrumb HomeR = return ("Home", Nothing)
-    breadcrumb (AuthR _) = return ("Login", Just HomeR)
-    breadcrumb ProfileR = return ("Profile", Just HomeR)
+--    breadcrumb (AuthR _) = return ("Login", Just HomeR)
+--    breadcrumb ProfileR = return ("Profile", Just HomeR)
     breadcrumb  _ = return ("home", Nothing)
 
 -- How to run database actions.
 instance YesodPersist App where
     type YesodPersistBackend App = SqlBackend
     runDB :: SqlPersistT Handler a -> Handler a
-    runDB action = do
+    runDB action = undefined {- do
         master <- getYesod
-        runSqlPool action $ appConnPool master
+        runSqlPool action $ appConnPool master -}
 
 instance YesodPersistRunner App where
     getDBRunner :: Handler (DBRunner App, Handler ())
-    getDBRunner = defaultGetDBRunner appConnPool
-
+    getDBRunner = undefined --defaultGetDBRunner appConnPool
+{-
 instance YesodAuth App where
     type AuthId App = UserId
 
@@ -270,7 +219,7 @@ isAuthenticated = do
         Nothing -> Unauthorized "You must login to access this page"
         Just _ -> Authorized
 
-instance YesodAuthPersist App
+instance YesodAuthPersist App -}
 
 -- This instance is required to use forms. You can modify renderMessage to
 -- achieve customized and internationalized form validation messages.

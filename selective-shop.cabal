@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d7b556c31caa8426de623c2a5b2a6b3b97d54d2257f14c95ec72d737da3d3e55
+-- hash: 9aa2abde0b7e52ab97fa7f943a4abdb460577b5f3d3fcdc8a367f3fa4369ede1
 
 name:           selective-shop
 version:        0.0.0
@@ -24,13 +24,13 @@ library
   exposed-modules:
       Application
       Foundation
-      Handler.Comment
       Handler.Common
       Handler.Home
-      Handler.Profile
       Import
       Import.NoFoundation
       Model
+      Parser.Parser
+      Parser.Types
       Settings
       Settings.StaticFiles
   other-modules:
@@ -71,6 +71,7 @@ library
     , wai-extra >=3.0 && <3.1
     , wai-logger >=2.2 && <2.4
     , warp >=3.0 && <3.3
+    , wreq
     , yaml >=0.8 && <0.9
     , yesod >=1.6 && <1.7
     , yesod-auth >=1.6 && <1.7
@@ -127,6 +128,7 @@ executable selective-shop
     , wai-extra >=3.0 && <3.1
     , wai-logger >=2.2 && <2.4
     , warp >=3.0 && <3.3
+    , wreq
     , yaml >=0.8 && <0.9
     , yesod >=1.6 && <1.7
     , yesod-auth >=1.6 && <1.7
@@ -186,6 +188,7 @@ test-suite selective-shop-test
     , wai-extra >=3.0 && <3.1
     , wai-logger >=2.2 && <2.4
     , warp >=3.0 && <3.3
+    , wreq
     , yaml >=0.8 && <0.9
     , yesod >=1.6 && <1.7
     , yesod-auth >=1.6 && <1.7
