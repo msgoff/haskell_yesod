@@ -34,7 +34,7 @@ import qualified Data.Text.Encoding as TE
 data App = App
     { appSettings    :: AppSettings
     , appStatic      :: Static -- ^ Settings for static file serving.
-    --, appConnPool    :: ConnectionPool -- ^ Database connection pool.
+    , appConnPool    :: ConnectionPool -- ^ Database connection pool.
     , appHttpManager :: Manager
     , appLogger      :: Logger
     }
@@ -173,13 +173,13 @@ instance YesodBreadcrumbs App where
 instance YesodPersist App where
     type YesodPersistBackend App = SqlBackend
     runDB :: SqlPersistT Handler a -> Handler a
-    runDB action = undefined {- do
-        master <- getYesod
-        runSqlPool action $ appConnPool master -}
+    runDB action = do
+      master <- getYesod
+      runSqlPool action $ appConnPool master
 
 instance YesodPersistRunner App where
     getDBRunner :: Handler (DBRunner App, Handler ())
-    getDBRunner = undefined --defaultGetDBRunner appConnPool
+    getDBRunner = defaultGetDBRunner appConnPool
 {-
 instance YesodAuth App where
     type AuthId App = UserId

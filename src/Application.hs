@@ -67,23 +67,23 @@ makeFoundation appSettings = do
     -- logging function. To get out of this loop, we initially create a
     -- temporary foundation without a real connection pool, get a log function
     -- from there, and then create the real foundation.
-    {-
+
     let mkFoundation appConnPool = App {..}
         -- The App {..} syntax is an example of record wild cards. For more
         -- information, see:
         -- https://ocharles.org.uk/blog/posts/2014-12-04-record-wildcards.html
         tempFoundation = mkFoundation $ error "connPool forced in tempFoundation"
-        logFunc = messageLoggerSource tempFoundation appLogger -}
+        logFunc = messageLoggerSource tempFoundation appLogger
 
     -- Create the database connection pool
-    {-
+
     pool <- flip runLoggingT logFunc $ createPostgresqlPool
         (pgConnStr  $ appDatabaseConf appSettings)
         (pgPoolSize $ appDatabaseConf appSettings)
 
     -- Perform database migration using our application's logging settings.
-    runLoggingT (runSqlPool (runMigration migrateAll) pool) logFunc -}
-
+    runLoggingT (runSqlPool (runMigration migrateAll) pool) logFunc
+    let appConnPool = pool
     -- Return the foundation
     return App{..}
 

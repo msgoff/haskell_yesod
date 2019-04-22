@@ -1,0 +1,8 @@
+HNJob
+    employer Text
+    score Int
+    created UTCTime
+    title Text
+    description Text
+    url Text
+    deriving Show
