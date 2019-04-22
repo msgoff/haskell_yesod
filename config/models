@@ -5,4 +5,4 @@ HNJob
     title Text
     description Text
     url Text
-    deriving Show
+    deriving Show Generic

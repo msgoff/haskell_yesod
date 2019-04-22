@@ -45,7 +45,8 @@ dependencies:
 - case-insensitive
 - wai
 - foreign-store
-- wreq
+- req
+- transformers
 
 # The library contains all of our application code. The executable
 # defined below is just a thin wrapper.

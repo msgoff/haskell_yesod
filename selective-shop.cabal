@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9aa2abde0b7e52ab97fa7f943a4abdb460577b5f3d3fcdc8a367f3fa4369ede1
+-- hash: 4bdd48f5612944afd567bbb55c57988fd126b56421c6d746d7b001336ceece95
 
 name:           selective-shop
 version:        0.0.0
@@ -60,18 +60,19 @@ library
     , persistent >=2.8 && <2.9
     , persistent-postgresql >=2.8 && <2.9
     , persistent-template >=2.5 && <2.9
+    , req
     , safe
     , shakespeare >=2.0 && <2.1
     , template-haskell
     , text >=0.11 && <2.0
     , time
+    , transformers
     , unordered-containers
     , vector
     , wai
     , wai-extra >=3.0 && <3.1
     , wai-logger >=2.2 && <2.4
     , warp >=3.0 && <3.3
-    , wreq
     , yaml >=0.8 && <0.9
     , yesod >=1.6 && <1.7
     , yesod-auth >=1.6 && <1.7
@@ -116,19 +117,20 @@ executable selective-shop
     , persistent >=2.8 && <2.9
     , persistent-postgresql >=2.8 && <2.9
     , persistent-template >=2.5 && <2.9
+    , req
     , safe
     , selective-shop
     , shakespeare >=2.0 && <2.1
     , template-haskell
     , text >=0.11 && <2.0
     , time
+    , transformers
     , unordered-containers
     , vector
     , wai
     , wai-extra >=3.0 && <3.1
     , wai-logger >=2.2 && <2.4
     , warp >=3.0 && <3.3
-    , wreq
     , yaml >=0.8 && <0.9
     , yesod >=1.6 && <1.7
     , yesod-auth >=1.6 && <1.7
@@ -176,19 +178,20 @@ test-suite selective-shop-test
     , persistent >=2.8 && <2.9
     , persistent-postgresql >=2.8 && <2.9
     , persistent-template >=2.5 && <2.9
+    , req
     , safe
     , selective-shop
     , shakespeare >=2.0 && <2.1
     , template-haskell
     , text >=0.11 && <2.0
     , time
+    , transformers
     , unordered-containers
     , vector
     , wai
     , wai-extra >=3.0 && <3.1
     , wai-logger >=2.2 && <2.4
     , warp >=3.0 && <3.3
-    , wreq
     , yaml >=0.8 && <0.9
     , yesod >=1.6 && <1.7
     , yesod-auth >=1.6 && <1.7
