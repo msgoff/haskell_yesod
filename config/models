@@ -1,8 +1,9 @@
-HNJob
-    employer Text
-    score Int
-    created UTCTime
-    title Text
-    description Text
-    url Text
-    deriving Show Generic
+Job
+  username Text
+  score Int
+  created UTCTime
+  title Text
+  description Text
+  url Text
+  UniqueUrl url
+  deriving Show Generic

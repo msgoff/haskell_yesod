@@ -21,3 +21,5 @@ data Monitor source = Monitor
   { monitorUser :: User
   , monitorTarget :: source
   , monitorInterval :: Int }
+
+type Interval = Int

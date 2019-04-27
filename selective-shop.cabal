@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4bdd48f5612944afd567bbb55c57988fd126b56421c6d746d7b001336ceece95
+-- hash: edf8c86efb26a3ceb10d5c8b07d32809b22bddeab073e09ef4f73de98c1b77c6
 
 name:           selective-shop
 version:        0.0.0
@@ -49,18 +49,20 @@ library
     , containers
     , data-default
     , directory >=1.1 && <1.4
+    , esqueleto
     , fast-logger >=2.2 && <2.5
     , file-embed
     , foreign-store
     , hjsmin >=0.1 && <0.3
     , http-client-tls >=0.3 && <0.4
     , http-conduit >=2.3 && <2.4
+    , lens
     , monad-control >=0.3 && <1.1
     , monad-logger >=0.3 && <0.4
     , persistent >=2.8 && <2.9
     , persistent-postgresql >=2.8 && <2.9
     , persistent-template >=2.5 && <2.9
-    , req
+    , resource-pool
     , safe
     , shakespeare >=2.0 && <2.1
     , template-haskell
@@ -73,6 +75,7 @@ library
     , wai-extra >=3.0 && <3.1
     , wai-logger >=2.2 && <2.4
     , warp >=3.0 && <3.3
+    , wreq
     , yaml >=0.8 && <0.9
     , yesod >=1.6 && <1.7
     , yesod-auth >=1.6 && <1.7
@@ -106,18 +109,20 @@ executable selective-shop
     , containers
     , data-default
     , directory >=1.1 && <1.4
+    , esqueleto
     , fast-logger >=2.2 && <2.5
     , file-embed
     , foreign-store
     , hjsmin >=0.1 && <0.3
     , http-client-tls >=0.3 && <0.4
     , http-conduit >=2.3 && <2.4
+    , lens
     , monad-control >=0.3 && <1.1
     , monad-logger >=0.3 && <0.4
     , persistent >=2.8 && <2.9
     , persistent-postgresql >=2.8 && <2.9
     , persistent-template >=2.5 && <2.9
-    , req
+    , resource-pool
     , safe
     , selective-shop
     , shakespeare >=2.0 && <2.1
@@ -131,6 +136,7 @@ executable selective-shop
     , wai-extra >=3.0 && <3.1
     , wai-logger >=2.2 && <2.4
     , warp >=3.0 && <3.3
+    , wreq
     , yaml >=0.8 && <0.9
     , yesod >=1.6 && <1.7
     , yesod-auth >=1.6 && <1.7
@@ -166,6 +172,7 @@ test-suite selective-shop-test
     , containers
     , data-default
     , directory >=1.1 && <1.4
+    , esqueleto
     , fast-logger >=2.2 && <2.5
     , file-embed
     , foreign-store
@@ -173,12 +180,13 @@ test-suite selective-shop-test
     , hspec >=2.0.0
     , http-client-tls >=0.3 && <0.4
     , http-conduit >=2.3 && <2.4
+    , lens
     , monad-control >=0.3 && <1.1
     , monad-logger >=0.3 && <0.4
     , persistent >=2.8 && <2.9
     , persistent-postgresql >=2.8 && <2.9
     , persistent-template >=2.5 && <2.9
-    , req
+    , resource-pool
     , safe
     , selective-shop
     , shakespeare >=2.0 && <2.1
@@ -192,6 +200,7 @@ test-suite selective-shop-test
     , wai-extra >=3.0 && <3.1
     , wai-logger >=2.2 && <2.4
     , warp >=3.0 && <3.3
+    , wreq
     , yaml >=0.8 && <0.9
     , yesod >=1.6 && <1.7
     , yesod-auth >=1.6 && <1.7
