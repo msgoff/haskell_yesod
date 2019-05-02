@@ -1,0 +1,2 @@
+<div #items-grid .ag-theme-balham style="height: 600px;width:500px;" class="ag-theme-balham">
+  <div>

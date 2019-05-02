@@ -12,7 +12,7 @@ Item
   score Int
   title Text Maybe
   UniqueApiId apiId
-  deriving Show
+  deriving Show Data Typeable
 
 Kid
   itemId ItemId

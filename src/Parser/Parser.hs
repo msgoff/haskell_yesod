@@ -6,7 +6,9 @@
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE RecordWildCards      #-}
 
-module Parser.Parser where
+module Parser.Parser
+  ( discoverItems
+  ) where
 
 import           Control.Monad.IO.Class             (liftIO)
 import           Control.Monad.Trans.Reader         (ReaderT)
@@ -27,10 +29,11 @@ import           Network.Wreq                       (Response, JSONError(..))
 import           Data.Pool                          (Pool)
 import qualified Database.Persist.Class     as P    (insertUnique)
 import qualified Database.Persist.Sql       as P    (runSqlPool)
-import           Database.Persist.Sql               (SqlBackend)
+import           Database.Persist.Sql               (SqlPersistT)
 
 import           Model
 import           Parser.Types
+import           Import                             (Handler, runDB)
 
 default (Text)
 
@@ -40,19 +43,21 @@ type MaxItemId  = Int
 -- Asks for the current largest item id and
 -- makes a particular number of steps backward
 -- from that point.
-discoverItems :: Int -> Pool SqlBackend -> IO ()
-discoverItems itemsAmount connPool = do
-  maxitemId <- getCurrentMaxitem
-  flip P.runSqlPool connPool $ worker itemsAmount maxitemId
-  where worker :: Int -> MaxItemId -> ReaderT SqlBackend IO ()
-        worker 0 _ = return ()
+discoverItems :: Int -> Handler [Item]
+discoverItems itemsAmount = do
+  maxitemId <- liftIO $ getCurrentMaxitem
+  runDB $ worker itemsAmount maxitemId
+  where worker :: Int -> MaxItemId -> SqlPersistT IO [Item]
+        worker 0 _ = return []
         worker counter itemId =
           let url = "https://hacker-news.firebaseio.com/v0/item/" ++ show itemId ++ ".json"
           in do item <- liftIO $ parseItem url
                 let go = worker (pred counter) (pred itemId)
                 case item of
                   Nothing -> go -- TODO: check if in the database + additional param
-                  Just item' -> P.insertUnique item' >> go -- TODO: one-to-many kids
+                  Just item' -> do P.insertUnique item' -- TODO: one-to-many kids
+                                   rest <- go
+                                   return $ item' : rest
 
 getCurrentMaxitem :: IO MaxItemId
 getCurrentMaxitem =
