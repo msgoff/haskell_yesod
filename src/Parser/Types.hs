@@ -1,8 +1,20 @@
+{-# LANGUAGE TemplateHaskell        #-}
+{-# LANGUAGE DeriveDataTypeable     #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeFamilies           #-}
 
-module Parser.Types where
+module Parser.Types
+  ( Interval
+  , ItemType(..)
+  ) where
+
+import           Database.Persist.TH
+
+import           Data.Char (toLower)
+import           Data.Data (Typeable, Data, toConstr, showConstr)
+
+{-
 
 data User -- TODO: UserM monad
 
@@ -21,5 +33,18 @@ data Monitor source = Monitor
   { monitorUser :: User
   , monitorTarget :: source
   , monitorInterval :: Int }
+-}
 
 type Interval = Int
+
+data ItemType =
+    Job
+  | Story
+  | Comment
+  | Pool
+  | Poolopt
+  deriving (Typeable, Data, Read)
+derivePersistField "ItemType"
+
+instance Show ItemType where
+  show = map toLower . showConstr . toConstr

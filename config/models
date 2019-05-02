@@ -1,9 +1,19 @@
-Job
+Item
+  apiId Text
+  deleted Bool default=False
+  itemType ItemType
   username Text
-  score Int
   created UTCTime
-  title Text
-  description Text
+  text Text Maybe
+  dead Bool default=False
+  parent Text Maybe
+  pool Text Maybe
   url Text
-  UniqueUrl url
-  deriving Show Generic
+  score Int
+  title Text Maybe
+  UniqueApiId apiId
+  deriving Show
+
+Kid
+  itemId ItemId
+  deriving Show
