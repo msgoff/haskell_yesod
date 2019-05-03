@@ -1,0 +1,9 @@
+let columnDefs = [ ^{columnDefinitions} ];
+
+let gridOptions = {
+  columnDefs: columnDefs,
+  rowData: [] /* TODO */
+};
+
+let eGridDiv = document.querySelector('#items-grid');
+new agGrid.Grid(eGridDiv, gridOptions);

@@ -1,31 +1,32 @@
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
+{-# LANGUAGE OverloadedStrings            #-}
+{-# LANGUAGE MultiParamTypeClasses        #-}
+{-# LANGUAGE TypeFamilies                 #-}
+
 module Handler.Home where
 
-import           Import
-import           Text.Julius    (RawJS (..))
+
+import qualified Import    as I
+import           Text.Julius    (RawJS (..), renderJavascript)
 import           Model          (Item(..))
 
-import           Data.Data      (constrFields, toConstr)
-import qualified Data.Text as T (replace, pack)
+import           Data.Data      (Data(..), constrFields, dataTypeConstrs)
+import qualified Data.Text as T (replace, pack, toLower)
 
 import           Parser.Parser  (discoverItems)
 
-getHomeR :: Handler Html
+
+getHomeR :: I.Handler I.Html
 getHomeR = do
-    app <- getYesod
-    items <- runDB $ discoverItems (appLogger app) 5
-    liftIO $ print items
-    columnDefinitions <- liftIO $ buildColumnDefs items
-    defaultLayout $ do
-        setTitle "Welcome To Yesod!"
-        $(widgetFile "home/home")
-    where buildColumnDefs [] = return []
-          buildColumnDefs (item:xs) =
-            let itemFields = constrFields . toConstr $ item
+    app <- I.getYesod
+    items <- I.runDB $ discoverItems (I.appLogger app) 5
+    I.defaultLayout $ do
+        I.setTitle "Welcome To Yesod!"
+        $(I.widgetFile "home/home")
+    where columnDefinitions =
+            let item = dataTypeOf (undefined :: Item)
+                itemFields = constrFields . head . dataTypeConstrs $ item
                 itemPrefix = "item"
                 noPrefixFields = map (T.replace itemPrefix "" . T.pack) itemFields
-            in print item >> buildColumnDefs xs
+            in foldr (\a b -> a <> [I.julius| , |] <> b) mempty (map mkDef noPrefixFields)
+            where mkDef hdr = [I.julius| { headerName: #{hdr}, field: #{T.toLower hdr} } |]

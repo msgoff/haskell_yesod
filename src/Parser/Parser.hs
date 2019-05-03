@@ -12,7 +12,6 @@ module Parser.Parser
   ) where
 
 import           Control.Monad.IO.Class             (liftIO)
-import           Control.Monad.Trans.Reader         (ReaderT)
 import           Control.Exception                  (catch)
 import           Data.String                        (IsString(..))
 import qualified Data.Text                  as T    (pack)
@@ -29,10 +28,7 @@ import           Data.Aeson.Types                   (Value(..), Parser, parseEit
 import qualified Network.Wreq               as R
 import           Network.Wreq                       (Response, JSONError(..))
 
-import           Data.Pool                          (Pool)
 import qualified Database.Persist.Class     as P    (insertUnique)
-import qualified Database.Persist.Sql       as P    (runSqlPool)
-import           Database.Persist.Sql               (SqlPersistT, SqlBackend)
 
 import           Model
 import           Parser.Types
