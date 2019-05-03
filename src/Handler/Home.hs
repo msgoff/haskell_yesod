@@ -16,8 +16,10 @@ import           Parser.Parser  (discoverItems)
 
 getHomeR :: Handler Html
 getHomeR = do
-    items <- discoverItems 20 
-    let columnDefinitions = buildColumnDefs items
+    app <- getYesod
+    items <- runDB $ discoverItems (appLogger app) 5
+    liftIO $ print items
+    columnDefinitions <- liftIO $ buildColumnDefs items
     defaultLayout $ do
         setTitle "Welcome To Yesod!"
         $(widgetFile "home/home")

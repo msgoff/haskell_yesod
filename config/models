@@ -9,7 +9,7 @@ Item
   parent Text Maybe
   pool Text Maybe
   url Text
-  score Int
+  score Int Maybe
   title Text Maybe
   UniqueApiId apiId
   deriving Show Data Typeable

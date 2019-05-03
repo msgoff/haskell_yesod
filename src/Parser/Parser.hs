@@ -1,10 +1,11 @@
 {-# OPTIONS_GHC -Wno-orphans        #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
+{-# LANGUAGE TemplateHaskell      #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
-{-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE RankNTypes           #-}
 
 module Parser.Parser
   ( discoverItems
@@ -13,27 +14,30 @@ module Parser.Parser
 import           Control.Monad.IO.Class             (liftIO)
 import           Control.Monad.Trans.Reader         (ReaderT)
 import           Control.Exception                  (catch)
+import           Data.String                        (IsString(..))
 import qualified Data.Text                  as T    (pack)
 import           Data.Text                          (Text)
 import qualified Data.ByteString.Lazy.Char8 as BSL  (unpack)
+import qualified Data.HashMap.Strict        as HM   (insert)
 import qualified Data.Maybe                 as M    (isJust)
 import qualified Data.Char                  as C    (toUpper)
 import qualified Data.Time.Clock.POSIX      as Time (posixSecondsToUTCTime)
 
 import           Control.Lens
 import           Data.Aeson
-import           Data.Aeson.Types                   (Value(..), Parser, parseMaybe)
+import           Data.Aeson.Types                   (Value(..), Parser, parseEither)
 import qualified Network.Wreq               as R
 import           Network.Wreq                       (Response, JSONError(..))
 
 import           Data.Pool                          (Pool)
 import qualified Database.Persist.Class     as P    (insertUnique)
 import qualified Database.Persist.Sql       as P    (runSqlPool)
-import           Database.Persist.Sql               (SqlPersistT)
+import           Database.Persist.Sql               (SqlPersistT, SqlBackend)
 
 import           Model
 import           Parser.Types
-import           Import                             (Handler, runDB)
+import           Import                             (DB)
+import           Yesod.Core.Types                   (Logger, loggerPutStr)
 
 default (Text)
 
@@ -43,33 +47,37 @@ type MaxItemId  = Int
 -- Asks for the current largest item id and
 -- makes a particular number of steps backward
 -- from that point.
-discoverItems :: Int -> Handler [Item]
-discoverItems itemsAmount = do
+discoverItems :: Logger -> Int -> DB [Item]
+discoverItems logger itemsAmount = do
   maxitemId <- liftIO $ getCurrentMaxitem
-  runDB $ worker itemsAmount maxitemId
-  where worker :: Int -> MaxItemId -> SqlPersistT IO [Item]
-        worker 0 _ = return []
-        worker counter itemId =
-          let url = "https://hacker-news.firebaseio.com/v0/item/" ++ show itemId ++ ".json"
-          in do item <- liftIO $ parseItem url
-                let go = worker (pred counter) (pred itemId)
-                case item of
-                  Nothing -> go -- TODO: check if in the database + additional param
-                  Just item' -> do P.insertUnique item' -- TODO: one-to-many kids
-                                   rest <- go
-                                   return $ item' : rest
+  worker logger itemsAmount maxitemId
+  where worker :: Logger -> Int -> MaxItemId -> DB [Item]
+        worker logger counter itemId
+         | counter == 0 = return []
+         | otherwise =
+             let url = "https://hacker-news.firebaseio.com/v0/item/" ++ show itemId ++ ".json"
+             in do item <- liftIO $ parseItem logger url
+                   liftIO $ loggerPutStr logger $ "Item parsed: " <> (fromString . show $ item) <> "\n"
+                   let go = worker logger (pred counter) (pred itemId)
+                   case item of
+                     Nothing -> go -- TODO: check if in the database + additional param
+                     Just item' -> do P.insertUnique item' -- TODO: one-to-many kids
+                                      rest <- go
+                                      return $ item' : rest
 
 getCurrentMaxitem :: IO MaxItemId
 getCurrentMaxitem =
   let url = "https://hacker-news.firebaseio.com/v0/maxitem.json"
   in do resp <- R.get url
         let maxitemId = read . BSL.unpack $ resp ^. R.responseBody
+        putStrLn "MAX ITEM:"
+        print maxitemId
         return maxitemId
 
 
-instance FromJSON (URL -> Item) where
+instance FromJSON Item where
   parseJSON (Object obj) = do
-    itemApiId <- obj .: "id"
+    itemApiId <- T.pack . show <$> (obj .: "id" :: Parser Int)
     itemDeleted <- obj `getBool` "deleted"
     itemTypeText <- obj .: "type"
     let itemItemType = read $ (C.toUpper . head $ itemTypeText) : tail itemTypeText :: ItemType
@@ -77,11 +85,13 @@ instance FromJSON (URL -> Item) where
     itemCreated <- toUTC <$> obj .: "time"
     itemText <- obj .:? "text"
     itemDead <- obj `getBool` "dead"
-    itemParent <- obj .:? "parent"
+    itemParent' <- obj .:? "parent" :: Parser (Maybe Int)
+    let itemParent = T.pack . show <$> itemParent'
     itemPool <- obj .:? "pool"
-    itemScore <- obj .: "score"
+    itemUrl <- obj .: "url"
+    itemScore <- obj .:? "score"
     itemTitle <- obj .:? "title"
-    return $ \strItemUrl -> let itemUrl = T.pack strItemUrl in Item{..}
+    return Item{..}
 
     where getBool obj key = do
             v <- obj .:? key :: Parser (Maybe Text)
@@ -90,15 +100,14 @@ instance FromJSON (URL -> Item) where
   parseJSON _ = error "Not an object."
 
 
-parseItem :: URL -> IO (Maybe Item)
-parseItem url = do
+parseItem :: Logger -> URL -> IO (Maybe Item)
+parseItem logger url = do
   mResp <- flip catch (\(JSONError _) -> return Nothing) $
              Just <$> (R.asJSON =<< R.get url :: IO (Response Object))
-  return $
-    case mResp of
-      Nothing -> Nothing
-      Just resp -> let respBody = resp ^. R.responseBody
-                       toItem   = parseMaybe parseJSON (Object respBody)
-                   in case toItem of
-                        Nothing -> Nothing
-                        Just f -> Just (f url)
+  case mResp of
+    Nothing -> loggerPutStr logger "Bad response.\n" >> return Nothing
+    Just resp ->
+      let respBody = HM.insert "url" (String . fromString $ url) (resp ^. R.responseBody)
+      in case (parseEither parseJSON $ Object respBody) of
+           Left e -> loggerPutStr logger (fromString e <> "\n") >> return Nothing
+           Right item -> return $ Just item
