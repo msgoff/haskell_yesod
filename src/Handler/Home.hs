@@ -7,7 +7,6 @@ module Handler.Home where
 
 
 import qualified Import    as I
-import           Text.Julius    (RawJS (..), renderJavascript)
 import           Model          (Item(..))
 
 import           Data.Data      (Data(..), constrFields, dataTypeConstrs)
@@ -19,7 +18,7 @@ import           Parser.Parser  (discoverItems)
 getHomeR :: I.Handler I.Html
 getHomeR = do
     app <- I.getYesod
-    items <- I.runDB $ discoverItems (I.appLogger app) 5
+    items <- I.runDB $ discoverItems (I.appLogger app) 20
     I.defaultLayout $ do
         I.setTitle "Welcome To Yesod!"
         $(I.widgetFile "home/home")

@@ -47,4 +47,4 @@ data ItemType =
 derivePersistField "ItemType"
 
 instance Show ItemType where
-  show = map toLower . showConstr . toConstr
+  show = showConstr . toConstr

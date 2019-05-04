@@ -16,4 +16,5 @@ Item
 
 Kid
   itemId ItemId
+  apiId Text
   deriving Show
