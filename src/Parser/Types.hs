@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell        #-}
 {-# LANGUAGE DeriveDataTypeable     #-}
+{-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeFamilies           #-}
@@ -11,8 +12,10 @@ module Parser.Types
 
 import           Database.Persist.TH
 
-import           Data.Char (toLower)
-import           Data.Data (Typeable, Data, toConstr, showConstr)
+import           Data.Data    (Typeable, Data, toConstr, showConstr)
+
+import           GHC.Generics (Generic)
+import           Data.Aeson   (ToJSON(..))
 
 {-
 
@@ -43,8 +46,10 @@ data ItemType =
   | Comment
   | Pool
   | Poolopt
-  deriving (Typeable, Data, Read)
+  deriving (Typeable, Data, Read, Generic)
 derivePersistField "ItemType"
 
 instance Show ItemType where
   show = showConstr . toConstr
+
+instance ToJSON ItemType where

@@ -1,8 +1,9 @@
 let columnDefs = [ ^{columnDefinitions} ];
+let rowData = [ ^{itemsData} ];
 
 let gridOptions = {
   columnDefs: columnDefs,
-  rowData: [] /* TODO */
+  rowData: rowData
 };
 
 let eGridDiv = document.querySelector('#items-grid');

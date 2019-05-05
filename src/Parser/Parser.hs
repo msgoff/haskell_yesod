@@ -82,6 +82,7 @@ getCurrentMaxitem =
         print maxitemId
         return maxitemId
 
+instance ToJSON Item where
 instance FromJSON Item where
   parseJSON (Object obj) = do
     itemApiId <- T.pack . show <$> (obj .: "id" :: Parser Int)
