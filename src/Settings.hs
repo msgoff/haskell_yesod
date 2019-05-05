@@ -47,6 +47,7 @@ data AppSettings = AppSettings
     -- ^ Use detailed request logging system
     , appShouldLogAll           :: Bool
     -- ^ Should all log messages be displayed?
+    , appLoggerFilepath         :: Maybe FilePath
     , appReloadTemplates        :: Bool
     -- ^ Use the reload version of templates
     , appMutableStatic          :: Bool
@@ -82,7 +83,8 @@ instance FromJSON AppSettings where
         dev                       <- o .:? "development"      .!= defaultDev
 
         appDetailedRequestLogging <- o .:? "detailed-logging" .!= dev
-        appShouldLogAll           <- o .:? "should-log-all"   .!= dev
+        appShouldLogAll           <- o .:? "should-log-all"   .!= False
+        appLoggerFilepath         <- o .:? "logger-filepath"
         appReloadTemplates        <- o .:? "reload-templates" .!= dev
         appMutableStatic          <- o .:? "mutable-static"   .!= dev
         appSkipCombining          <- o .:? "skip-combining"   .!= dev

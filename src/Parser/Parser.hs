@@ -23,6 +23,7 @@ import qualified Data.ByteString.Lazy.Char8 as BSL  (unpack)
 import qualified Data.HashMap.Strict        as HM   (insert, member)
 import qualified Data.Vector                as V    (toList)
 import           Data.Vector                        (Vector)
+import qualified Data.Maybe                 as M    (isJust)
 import qualified Data.Char                  as C    (toUpper)
 import qualified Data.Time.Clock.POSIX      as Time (posixSecondsToUTCTime)
 

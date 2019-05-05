@@ -9,3 +9,4 @@ database:
   database: selective-shop_test
 
 auth-dummy-login: true
+should-log-all: false
