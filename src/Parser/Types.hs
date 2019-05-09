@@ -6,8 +6,7 @@
 {-# LANGUAGE TypeFamilies           #-}
 
 module Parser.Types
-  ( Interval
-  , ItemType(..)
+  ( ItemType(..)
   ) where
 
 import           Database.Persist.TH
@@ -37,8 +36,6 @@ data Monitor source = Monitor
   , monitorTarget :: source
   , monitorInterval :: Int }
 -}
-
-type Interval = Int
 
 data ItemType =
     Job

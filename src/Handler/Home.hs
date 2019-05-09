@@ -7,20 +7,24 @@ module Handler.Home where
 
 
 import qualified Import    as I
-import           Model                     (Item(..))
+import           Model                              (Item(..))
 
-import           Data.Data                 (Data(..), constrFields, dataTypeConstrs)
-import qualified Data.Text as T            (replace, pack, toLower)
+import           Control.Monad                      (forever)
+import           Control.Monad.Coroutine            (Coroutine(..))
+import Control.Monad.Coroutine.SuspensionFunctors   (Yield(..))
+import           Data.IORef                         (newIORef)
+import           Data.Data                          (Data(..), constrFields, dataTypeConstrs)
+import qualified Data.Text as T                     (replace, pack, toLower)
 import           Data.Aeson
-import qualified Data.HashMap.Strict as HM (toList)
+import qualified Data.HashMap.Strict as HM          (toList)
 
-import           Parser.Parser             (discoverItems)
+import           Parser.Parser                      (mkDiscoverStep)
 
 
 getHomeR :: I.Handler I.Html
 getHomeR = do
     app <- I.getYesod
-    items <- I.runDB $ discoverItems (I.appLogger app) 20
+    Left (Yield items cont) <- resume $ mkDiscoverStep (I.appLogger app) 20
     let itemsData = juliusCombineByComma (makeItemsData items)
     I.defaultLayout $ do
         I.setTitle "Welcome To Yesod!"

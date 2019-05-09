@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: edf8c86efb26a3ceb10d5c8b07d32809b22bddeab073e09ef4f73de98c1b77c6
+-- hash: 91c59a81431f1389c946933b96575cc87b9dfbec06bcf6eb53c20edd4872efc6
 
 name:           selective-shop
 version:        0.0.0
@@ -58,6 +58,7 @@ library
     , http-conduit >=2.3 && <2.4
     , lens
     , monad-control >=0.3 && <1.1
+    , monad-coroutine
     , monad-logger >=0.3 && <0.4
     , persistent >=2.8 && <2.9
     , persistent-postgresql >=2.8 && <2.9
@@ -118,6 +119,7 @@ executable selective-shop
     , http-conduit >=2.3 && <2.4
     , lens
     , monad-control >=0.3 && <1.1
+    , monad-coroutine
     , monad-logger >=0.3 && <0.4
     , persistent >=2.8 && <2.9
     , persistent-postgresql >=2.8 && <2.9
@@ -182,6 +184,7 @@ test-suite selective-shop-test
     , http-conduit >=2.3 && <2.4
     , lens
     , monad-control >=0.3 && <1.1
+    , monad-coroutine
     , monad-logger >=0.3 && <0.4
     , persistent >=2.8 && <2.9
     , persistent-postgresql >=2.8 && <2.9

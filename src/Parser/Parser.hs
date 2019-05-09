@@ -11,11 +11,19 @@
 
 module Parser.Parser
   ( discoverItems
+  , mkDiscoverStep
   ) where
 
+import           Control.Monad                      (forever)
 import           Control.Monad.IO.Class             (liftIO)
+import           Control.Monad.Trans.Class          (lift)
+--import           Control.Concurrent.Async           ()
+import           Control.Concurrent                 (threadDelay)
+import           Control.Monad.Coroutine            (Coroutine )
+import Control.Monad.Coroutine.SuspensionFunctors   (Yield, yield)
 import           Control.Exception                  (catch)
 import           Data.String                        (IsString(..))
+import           Data.IORef                         (newIORef, readIORef, atomicWriteIORef)
 import qualified Data.Text                  as T    (pack)
 import           Data.Text                          (Text)
 import           Data.Proxy                         (Proxy(..))
@@ -23,7 +31,7 @@ import qualified Data.ByteString.Lazy.Char8 as BSL  (unpack)
 import qualified Data.HashMap.Strict        as HM   (insert, member)
 import qualified Data.Vector                as V    (toList)
 import           Data.Vector                        (Vector)
-import qualified Data.Maybe                 as M    (isJust)
+import qualified Data.Maybe                 as M    (isJust, maybe)
 import qualified Data.Char                  as C    (toUpper)
 import qualified Data.Time.Clock.POSIX      as Time (posixSecondsToUTCTime)
 
@@ -39,7 +47,7 @@ import           Database.Persist.Types             (PersistValue(PersistInt64))
 
 import           Model
 import           Parser.Types
-import           Import                             (DB)
+import           Import                             (DB, App(..), Handler, getYesod, runDB)
 import           Yesod.Core.Types                   (Logger, loggerPutStr)
 
 default (Text)
@@ -47,12 +55,22 @@ default (Text)
 type URL = String
 type MaxItemId  = Int
 
+mkDiscoverStep :: Logger -> Int -> Coroutine (Yield [Item]) Handler ()
+mkDiscoverStep logger itemsAmount = do
+  start <- liftIO $ getCurrentMaxitem >>= newIORef
+  logger <- lift $ appLogger <$> getYesod
+  forever $ do
+    startValue <- lift $ liftIO $ readIORef start
+    items <- lift $ runDB $ discoverItems logger (Just startValue) itemsAmount
+    lift $ liftIO $ atomicWriteIORef start (startValue - itemsAmount)
+    yield items
+
 -- Asks for the current largest item id and
--- makes a particular number of steps backward
--- from that point.
-discoverItems :: Logger -> Int -> DB [Item]
-discoverItems logger itemsAmount = do
-  maxitemId <- liftIO $ getCurrentMaxitem
+-- makes a particular number of steps backward from that point.
+-- Parameter 'start' stays for maxitem when defined.
+discoverItems :: Logger -> Maybe MaxItemId -> Int -> DB [Item]
+discoverItems logger start itemsAmount = do
+  maxitemId <- liftIO $ M.maybe getCurrentMaxitem return start
   worker logger itemsAmount maxitemId
   where worker :: Logger -> Int -> MaxItemId -> DB [Item]
         worker logger counter itemId
