@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 91c59a81431f1389c946933b96575cc87b9dfbec06bcf6eb53c20edd4872efc6
+-- hash: 316f7bc5c9b63df707ec55d0891465fee44ba94129f99652de5c62ee731030a4
 
 name:           selective-shop
 version:        0.0.0
@@ -39,6 +39,7 @@ library
       src
   build-depends:
       aeson >=0.6 && <1.4
+    , async
     , base >=4.8.2.0 && <4.9 || >=4.9.1.0 && <5
     , bytestring >=0.9 && <0.11
     , case-insensitive
@@ -100,6 +101,7 @@ executable selective-shop
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson >=0.6 && <1.4
+    , async
     , base >=4.8.2.0 && <4.9 || >=4.9.1.0 && <5
     , bytestring >=0.9 && <0.11
     , case-insensitive
@@ -164,6 +166,7 @@ test-suite selective-shop-test
   ghc-options: -Wall
   build-depends:
       aeson >=0.6 && <1.4
+    , async
     , base >=4.8.2.0 && <4.9 || >=4.9.1.0 && <5
     , bytestring >=0.9 && <0.11
     , case-insensitive

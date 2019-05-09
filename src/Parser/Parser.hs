@@ -17,7 +17,7 @@ module Parser.Parser
 import           Control.Monad                      (forever)
 import           Control.Monad.IO.Class             (liftIO)
 import           Control.Monad.Trans.Class          (lift)
---import           Control.Concurrent.Async           ()
+import qualified Control.Concurrent.Async   as A    (async, wait)
 import           Control.Concurrent                 (threadDelay)
 import           Control.Monad.Coroutine            (Coroutine )
 import Control.Monad.Coroutine.SuspensionFunctors   (Yield, yield)
@@ -31,7 +31,7 @@ import qualified Data.ByteString.Lazy.Char8 as BSL  (unpack)
 import qualified Data.HashMap.Strict        as HM   (insert, member)
 import qualified Data.Vector                as V    (toList)
 import           Data.Vector                        (Vector)
-import qualified Data.Maybe                 as M    (isJust, maybe)
+import qualified Data.Maybe                 as M    (isJust, maybe, catMaybes)
 import qualified Data.Char                  as C    (toUpper)
 import qualified Data.Time.Clock.POSIX      as Time (posixSecondsToUTCTime)
 
@@ -71,25 +71,25 @@ mkDiscoverStep logger itemsAmount = do
 discoverItems :: Logger -> Maybe MaxItemId -> Int -> DB [Item]
 discoverItems logger start itemsAmount = do
   maxitemId <- liftIO $ M.maybe getCurrentMaxitem return start
-  worker logger itemsAmount maxitemId
-  where worker :: Logger -> Int -> MaxItemId -> DB [Item]
-        worker logger counter itemId
+  itemsAsync <- liftIO $ worker logger itemsAmount maxitemId
+  items <- liftIO $ mapM A.wait itemsAsync
+  return . M.catMaybes =<< flip mapM items (\item ->
+    case item of
+      Nothing -> return Nothing
+      Just (item', valItem) -> do dbItemKey <- P.insertUnique item'
+                                  case dbItemKey of
+                                    Nothing -> return Nothing
+                                    Just key -> do
+                                      kids <- liftIO $ parseKids logger key valItem
+                                      mapM_ P.insertUnique kids
+                                      return (Just item'))
+  where worker logger counter itemId
          | counter == 0 = return []
          | otherwise =
              let url = "https://hacker-news.firebaseio.com/v0/item/" ++ show itemId ++ ".json"
-             in do item <- liftIO $ parseItem logger url
-                   liftIO $ loggerPutStr logger $ "Item parsed: " <> (fromString . show $ item) <> "\n"
-                   let go = worker logger (pred counter) (pred itemId)
-                   case item of
-                     Nothing -> go -- TODO: check if in the database + additional param
-                     Just (item', valItem) -> do dbItemKey <- P.insertUnique item'
-                                                 case dbItemKey of
-                                                   Nothing -> return ()
-                                                   Just key -> do
-                                                     kids <- liftIO $ parseKids logger key valItem
-                                                     mapM_ P.insertUnique kids
-                                                 rest <- go
-                                                 return $ item' : rest
+             in do item <- A.async $ parseItem logger url
+                   rest <- worker logger (pred counter) (pred itemId)
+                   return $ item : rest
 
 getCurrentMaxitem :: IO MaxItemId
 getCurrentMaxitem =
