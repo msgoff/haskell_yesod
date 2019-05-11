@@ -17,7 +17,7 @@ module Parser.Parser
 import           Control.Monad                      (forever)
 import           Control.Monad.IO.Class             (liftIO)
 import           Control.Monad.Trans.Class          (lift)
-import           Control.Concurrent                 (ThreadId, threadDelay, forkIO)
+import           Control.Concurrent                 (ThreadId, threadDelay, forkIO, killThread)
 import qualified Control.Concurrent.Async   as A    (async, wait)
 import           Control.Monad.Coroutine            (Coroutine, resume)
 import Control.Monad.Coroutine.SuspensionFunctors   (Yield(..), yield)
@@ -58,15 +58,22 @@ type MaxItemId  = Int
 type Interval = Int
 type ChunkSize = Int
 
-runMonitor :: ChunkSize -> Interval -> Handler ThreadId
-runMonitor itemsAmount interval = do
+runMonitor :: ChunkSize -> Interval -> Maybe Interval -> Handler ThreadId
+runMonitor itemsAmount interval releaseAfter = do
   runInnerHandler <- handlerToIO
-  liftIO . forkIO . runInnerHandler $
+  monitorThreadId <- liftIO . forkIO . runInnerHandler $
     worker (mkDiscoverStep itemsAmount) interval
+  case releaseAfter of
+    Nothing -> return ()
+    Just msToRelease -> liftIO $ do
+      threadDelay (toSeconds msToRelease)
+      killThread monitorThreadId
+  return monitorThreadId
   where worker gen interval = do
           Left (Yield _ cont) <- resume gen
-          liftIO $ threadDelay (interval * 1000000)
+          liftIO $ threadDelay (toSeconds interval)
           worker cont interval
+        toSeconds = (*) 1000000
 
 mkDiscoverStep :: Int -> Coroutine (Yield [Item]) Handler ()
 mkDiscoverStep itemsAmount = do
@@ -93,8 +100,11 @@ discoverItems logger start itemsAmount = do
                                   case dbItemKey of
                                     Nothing -> return Nothing
                                     Just key -> do
-                                      kids <- liftIO $ parseKids logger key valItem
+                                      let extendedValItem = extendObjectWithModelId key valItem
+                                      kids <- liftIO $ parseKids logger extendedValItem
+                                      parts <- liftIO $ parseParts logger extendedValItem
                                       mapM_ P.insertUnique kids
+                                      mapM_ P.insertUnique parts
                                       return (Just item'))
   where worker logger counter itemId
          | counter == 0 = return []
@@ -116,7 +126,7 @@ getCurrentMaxitem =
 instance ToJSON Item where
 instance FromJSON Item where
   parseJSON (Object obj) = do
-    itemApiId <- T.pack . show <$> (obj .: "id" :: Parser Int)
+    itemApiId <- obj .: "id"
     itemDeleted <- obj `getBool` "deleted"
     itemTypeText <- obj .: "type"
     let itemItemType = read $ ((C.toUpper . head $ itemTypeText) : tail itemTypeText) :: ItemType
@@ -130,6 +140,7 @@ instance FromJSON Item where
     itemUrl <- obj .: "url"
     itemScore <- obj .:? "score"
     itemTitle <- obj .:? "title"
+    itemDescendants <- obj .:? "descendants"
     return Item{..}
 
     where getBool obj key = do
@@ -152,23 +163,39 @@ parseItem logger url = do
                        Nothing -> Nothing
                        Just item' -> Just (item', itemObject)
 
+extendObjectWithModelId :: Key Item -> Value -> Value
+extendObjectWithModelId dbItemKey (Object itemObject) =
+  let (PersistInt64 keyVal) = head (keyToValues dbItemKey)
+      valItem = Object $ HM.insert "model-id" (String . fromString . show $ keyVal) itemObject
+  in valItem
+
+_getItemId :: Object -> Parser (Key Item)
+_getItemId obj = do
+  (Right itemApiId) <- (\key -> keyFromValues [(PersistInt64 . read . fromString $ key)]) <$>
+                         obj .: "model-id"
+  return itemApiId
+
 instance {-# OVERLAPPING #-} FromJSON [Kid] where
   parseJSON (Object obj) = do
-    (Right itemApiId) <- (\key -> keyFromValues [(PersistInt64 . read . fromString $ key)]) <$> obj .: "api-id"
-    kids <- map (T.pack . show) . V.toList <$> (obj .: "kids" :: Parser (Vector Int))
+    itemApiId <- _getItemId obj
+    kids <- V.toList <$> obj .: "kids"
     return $ map (Kid itemApiId) kids
-  parseJSON _ = error "Not an object."
 
-parseKids :: Logger -> Key Item -> Value -> IO [Kid]
-parseKids logger dbItemKey (Object itemObject)
+instance {-# OVERLAPPING #-} FromJSON [Part] where
+  parseJSON (Object obj) = do
+    itemApiId <- _getItemId obj
+    parts <- V.toList <$> obj .: "parts"
+    return $ map (Part itemApiId) parts
+
+parseKids :: Logger -> Value -> IO [Kid]
+parseKids logger valItem@(Object itemObject)
   | not (HM.member "kids" itemObject) = return []
-  | otherwise =
-    let (PersistInt64 keyVal) = head (keyToValues dbItemKey)
-        valItem = Object $ HM.insert "api-id" (String . fromString . show $ keyVal) itemObject
-    in do res <- _parseMaybe logger valItem (Proxy :: Proxy [Kid])
-          return $ case res of
-                     Nothing -> []
-                     Just r -> r
+  | otherwise = maybe [] id <$> _parseMaybe logger valItem (Proxy :: Proxy [Kid])
+
+parseParts :: Logger -> Value -> IO [Part]
+parseParts logger valItem@(Object itemObject)
+  | not (HM.member "parts" itemObject) = return []
+  | otherwise = maybe [] id <$> _parseMaybe logger valItem (Proxy :: Proxy [Part])
 
 _parseMaybe :: forall proxy a. (FromJSON a) => Logger -> Value -> proxy a -> IO (Maybe a)
 _parseMaybe logger val _ =

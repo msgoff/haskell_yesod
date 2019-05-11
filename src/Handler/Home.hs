@@ -9,9 +9,7 @@ module Handler.Home where
 import qualified Import    as I
 import           Model                              (Item(..))
 
-import           Control.Monad                      (forever)
-import           Control.Monad.Coroutine            (Coroutine(..))
-import Control.Monad.Coroutine.SuspensionFunctors   (Yield(..))
+import           Control.Concurrent                 (threadDelay, killThread)
 import           Data.Data                          (Data(..), constrFields, dataTypeConstrs)
 import qualified Data.Text as T                     (replace, pack, toLower)
 import           Data.Aeson
@@ -23,7 +21,7 @@ import           Parser.Parser                      (runMonitor, discoverItems)
 getHomeR :: I.Handler I.Html
 getHomeR = do
     app <- I.getYesod
-    items <- I.runDB $ discoverItems (I.appLogger app) Nothing 20
+    threadId <- runMonitor 5 10 (Maybe 100)
     let itemsData = juliusCombineByComma (makeItemsData items)
     I.defaultLayout $ do
         I.setTitle "Welcome To Yesod!"

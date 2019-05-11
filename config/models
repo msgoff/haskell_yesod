@@ -1,5 +1,5 @@
 Item
-  apiId Text
+  apiId Int
   deleted Bool default=False
   itemType ItemType
   username Text
@@ -11,10 +11,16 @@ Item
   url Text
   score Int Maybe
   title Text Maybe
+  descendants Int Maybe
   UniqueApiId apiId
   deriving Show Data Typeable Generic
 
 Kid
   itemId ItemId
-  apiId Text
+  apiId Int
+  deriving Show
+
+Part
+  itemId ItemId
+  apiId Int
   deriving Show
