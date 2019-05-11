@@ -11,16 +11,16 @@
 
 module Parser.Parser
   ( discoverItems
-  , mkDiscoverStep
+  , runMonitor
   ) where
 
 import           Control.Monad                      (forever)
 import           Control.Monad.IO.Class             (liftIO)
 import           Control.Monad.Trans.Class          (lift)
+import           Control.Concurrent                 (ThreadId, threadDelay, forkIO)
 import qualified Control.Concurrent.Async   as A    (async, wait)
-import           Control.Concurrent                 (threadDelay)
-import           Control.Monad.Coroutine            (Coroutine )
-import Control.Monad.Coroutine.SuspensionFunctors   (Yield, yield)
+import           Control.Monad.Coroutine            (Coroutine, resume)
+import Control.Monad.Coroutine.SuspensionFunctors   (Yield(..), yield)
 import           Control.Exception                  (catch)
 import           Data.String                        (IsString(..))
 import           Data.IORef                         (newIORef, readIORef, atomicWriteIORef)
@@ -47,16 +47,29 @@ import           Database.Persist.Types             (PersistValue(PersistInt64))
 
 import           Model
 import           Parser.Types
-import           Import                             (DB, App(..), Handler, getYesod, runDB)
+import           Import                             (DB, App(..), Handler,
+                                                     getYesod, runDB, handlerToIO)
 import           Yesod.Core.Types                   (Logger, loggerPutStr)
 
 default (Text)
 
 type URL = String
 type MaxItemId  = Int
+type Interval = Int
+type ChunkSize = Int
 
-mkDiscoverStep :: Logger -> Int -> Coroutine (Yield [Item]) Handler ()
-mkDiscoverStep logger itemsAmount = do
+runMonitor :: ChunkSize -> Interval -> Handler ThreadId
+runMonitor itemsAmount interval = do
+  runInnerHandler <- handlerToIO
+  liftIO . forkIO . runInnerHandler $
+    worker (mkDiscoverStep itemsAmount) interval
+  where worker gen interval = do
+          Left (Yield _ cont) <- resume gen
+          liftIO $ threadDelay (interval * 1000000)
+          worker cont interval
+
+mkDiscoverStep :: Int -> Coroutine (Yield [Item]) Handler ()
+mkDiscoverStep itemsAmount = do
   start <- liftIO $ getCurrentMaxitem >>= newIORef
   logger <- lift $ appLogger <$> getYesod
   forever $ do
@@ -68,7 +81,7 @@ mkDiscoverStep logger itemsAmount = do
 -- Asks for the current largest item id and
 -- makes a particular number of steps backward from that point.
 -- Parameter 'start' stays for maxitem when defined.
-discoverItems :: Logger -> Maybe MaxItemId -> Int -> DB [Item]
+discoverItems :: Logger -> Maybe MaxItemId -> ChunkSize -> DB [Item]
 discoverItems logger start itemsAmount = do
   maxitemId <- liftIO $ M.maybe getCurrentMaxitem return start
   itemsAsync <- liftIO $ worker logger itemsAmount maxitemId

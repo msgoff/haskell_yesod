@@ -12,19 +12,18 @@ import           Model                              (Item(..))
 import           Control.Monad                      (forever)
 import           Control.Monad.Coroutine            (Coroutine(..))
 import Control.Monad.Coroutine.SuspensionFunctors   (Yield(..))
-import           Data.IORef                         (newIORef)
 import           Data.Data                          (Data(..), constrFields, dataTypeConstrs)
 import qualified Data.Text as T                     (replace, pack, toLower)
 import           Data.Aeson
 import qualified Data.HashMap.Strict as HM          (toList)
 
-import           Parser.Parser                      (mkDiscoverStep)
+import           Parser.Parser                      (runMonitor, discoverItems)
 
 
 getHomeR :: I.Handler I.Html
 getHomeR = do
     app <- I.getYesod
-    Left (Yield items cont) <- resume $ mkDiscoverStep (I.appLogger app) 20
+    items <- I.runDB $ discoverItems (I.appLogger app) Nothing 20
     let itemsData = juliusCombineByComma (makeItemsData items)
     I.defaultLayout $ do
         I.setTitle "Welcome To Yesod!"
