@@ -47,8 +47,8 @@ import           Database.Persist.Types             (PersistValue(PersistInt64))
 
 import           Model
 import           Parser.Types
-import           Import                             (DB, App(..), Handler,
-                                                     getYesod, runDB, handlerToIO)
+import           Import                             (DB, App(..), Handler
+                                                    ,getYesod, runDB, handlerToIO)
 import           Yesod.Core.Types                   (Logger, loggerPutStr)
 
 default (Text)

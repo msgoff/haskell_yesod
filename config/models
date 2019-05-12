@@ -13,7 +13,7 @@ Item
   title Text Maybe
   descendants Int Maybe
   UniqueApiId apiId
-  deriving Show Data Typeable Generic
+  deriving Show Eq Data Typeable Generic
 
 Kid
   itemId ItemId
