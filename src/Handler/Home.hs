@@ -23,11 +23,15 @@ import           Database.Esqueleto
 
 import           Parser.Parser                      (runMonitor, discoverItems)
 
+getPullR :: Int -> Int -> Int -> I.Handler I.Html
+getPullR amount interval stop = do
+  _ <- runMonitor amount interval (Just stop)
+  I.defaultLayout [I.whamlet| |]
 
 getHomeR :: I.Handler I.Html
 getHomeR = do
     app <- I.getYesod
-    -- _ <- runMonitor 20 5 (Just 100)
+    --_ <- runMonitor 70 5 (Just 30)
     --eitems <- toExtendedItems <$> I.runDB itemsFromDB
     --I.liftIO $ flip mapM_ eitems (\g -> print g >> putStrLn "\n\n")
     items <- (I.runDB $ select $

@@ -14,7 +14,7 @@ module Parser.Parser
   , runMonitor
   ) where
 
-import           Control.Monad                      (forever)
+import           Control.Monad                      (forever, void)
 import           Control.Monad.IO.Class             (liftIO)
 import           Control.Monad.Trans.Class          (lift)
 import           Control.Concurrent                 (ThreadId, threadDelay, forkIO, killThread)
@@ -35,7 +35,7 @@ import qualified Data.Maybe                 as M    (isJust, maybe, catMaybes)
 import qualified Data.Char                  as C    (toUpper)
 import qualified Data.Time.Clock.POSIX      as Time (posixSecondsToUTCTime)
 
-import           Control.Lens
+import qualified Control.Lens               as L    ((^.))
 import           Data.Aeson
 import           Data.Aeson.Types                   (Value(..), Parser, parseEither)
 import qualified Network.Wreq               as R
@@ -44,11 +44,12 @@ import           Network.Wreq                       (Response, JSONError(..))
 import qualified Database.Persist.Class     as P    (insertUnique)
 import           Database.Persist.Class             (PersistEntity(..))
 import           Database.Persist.Types             (PersistValue(PersistInt64))
+import           Database.Esqueleto hiding (Value(..))
 
 import           Model
 import           Parser.Types
-import           Import                             (DB, App(..), Handler
-                                                    ,getYesod, runDB, handlerToIO)
+import           Import                             (Handler, DB)
+import qualified Import                     as I
 import           Yesod.Core.Types                   (Logger, loggerPutStr)
 
 default (Text)
@@ -60,30 +61,41 @@ type ChunkSize = Int
 
 runMonitor :: ChunkSize -> Interval -> Maybe Interval -> Handler ThreadId
 runMonitor itemsAmount interval releaseAfter = do
-  runInnerHandler <- handlerToIO
+  runInnerHandler <- I.handlerToIO
   monitorThreadId <- liftIO . forkIO . runInnerHandler $
     worker (mkDiscoverStep itemsAmount) interval
   case releaseAfter of
     Nothing -> return ()
-    Just msToRelease -> liftIO $ do
-      threadDelay (toSeconds msToRelease)
-      killThread monitorThreadId
+    Just releaseAfter' -> registerKillerProcess monitorThreadId releaseAfter'
   return monitorThreadId
   where worker gen interval = do
           Left (Yield _ cont) <- resume gen
           liftIO $ threadDelay (toSeconds interval)
           worker cont interval
         toSeconds = (*) 1000000
+        registerKillerProcess threadId stop = void . liftIO . forkIO $ do
+          threadDelay (toSeconds stop)
+          killThread threadId
 
 mkDiscoverStep :: Int -> Coroutine (Yield [Item]) Handler ()
 mkDiscoverStep itemsAmount = do
-  start <- liftIO $ getCurrentMaxitem >>= newIORef
-  logger <- lift $ appLogger <$> getYesod
+  dbId <- dbSmallestId
+  start <- liftIO $ M.maybe getCurrentMaxitem return dbId >>= newIORef
+  logger <- lift $ I.appLogger <$> I.getYesod
   forever $ do
     startValue <- lift $ liftIO $ readIORef start
-    items <- lift $ runDB $ discoverItems logger (Just startValue) itemsAmount
+    lift $ liftIO $ putStrLn "START: " >> print startValue
+    items <- lift $ I.runDB $ discoverItems logger (Just startValue) itemsAmount
     lift $ liftIO $ atomicWriteIORef start (startValue - itemsAmount)
     yield items
+  where dbSmallestId = lift $ do
+          res <- (I.runDB $ select $
+                           from $ \item -> do
+                           orderBy [asc (item ^. I.ItemApiId)]
+                           return item) :: Handler [Entity Item]
+          case res of
+            [] -> return Nothing
+            _ -> return $ Just (I.itemApiId . entityVal . head $ res)
 
 -- Asks for the current largest item id and
 -- makes a particular number of steps backward from that point.
@@ -118,7 +130,7 @@ getCurrentMaxitem :: IO MaxItemId
 getCurrentMaxitem =
   let url = "https://hacker-news.firebaseio.com/v0/maxitem.json"
   in do resp <- R.get url
-        let maxitemId = read . BSL.unpack $ resp ^. R.responseBody
+        let maxitemId = read . BSL.unpack $ resp L.^. R.responseBody
         putStrLn "MAX ITEM:"
         print maxitemId
         return maxitemId
@@ -130,13 +142,13 @@ instance FromJSON Item where
     itemDeleted <- obj `getBool` "deleted"
     itemTypeText <- obj .: "type"
     let itemItemType = read $ ((C.toUpper . head $ itemTypeText) : tail itemTypeText) :: ItemType
-    itemUsername <- obj .: "by"
+    itemUsername <- obj .:? "by"
     itemCreated <- toUTC <$> obj .: "time"
     itemText <- obj .:? "text"
     itemDead <- obj `getBool` "dead"
     itemParent' <- obj .:? "parent" :: Parser (Maybe Int)
     let itemParent = T.pack . show <$> itemParent'
-    itemPool <- obj .:? "pool"
+    itemPoll <- obj .:? "pool"
     itemUrl <- obj .: "url"
     itemScore <- obj .:? "score"
     itemTitle <- obj .:? "title"
@@ -144,7 +156,7 @@ instance FromJSON Item where
     return Item{..}
 
     where getBool obj key = do
-            v <- obj .:? key :: Parser (Maybe Text)
+            v <- obj .:? key :: Parser (Maybe Bool)
             return $ M.isJust v
           toUTC = Time.posixSecondsToUTCTime
   parseJSON _ = error "Not an object."
@@ -156,7 +168,7 @@ parseItem logger url = do
   case mResp of
     Nothing -> loggerPutStr logger "Bad response.\n" >> return Nothing
     Just resp ->
-      let respBody = HM.insert "url" (String . fromString $ url) (resp ^. R.responseBody)
+      let respBody = HM.insert "url" (String . fromString $ url) (resp L.^. R.responseBody)
           itemObject = Object respBody
       in do item <- _parseMaybe logger itemObject (Proxy :: Proxy Item)
             return $ case item of
