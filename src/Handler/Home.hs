@@ -10,7 +10,9 @@ module Handler.Home where
 import qualified Import    as I
 import           Model                              (Item(..))
 
-import           Control.Concurrent                 (threadDelay, killThread)
+import           System.Directory                   (doesFileExist)
+import           Control.Monad                      (void)
+import           Control.Concurrent                 (threadDelay, killThread, forkIO)
 import           Data.Data                          (Data(..), constrFields, dataTypeConstrs)
 import qualified Data.Text as T                     (replace, pack, toLower)
 import           Data.Aeson
@@ -21,30 +23,30 @@ import qualified Data.HashMap.Strict as HM          (toList)
 
 import           Database.Esqueleto
 
-import           Parser.Parser                      (runMonitor, discoverItems)
+import           Parser.Parser
 
 getPullR :: Int -> Int -> Int -> I.Handler I.Html
-getPullR amount interval stop = do
-  _ <- runMonitor amount interval (Just stop)
-  I.defaultLayout [I.whamlet| |]
+getPullR amount interval stop =
+  let fp = "data.json" -- TODO: Config.
+  in do jsonExists <- I.liftIO $ doesFileExist fp
+        if jsonExists
+          then void . I.runDB $ fullItemsFromFile fp
+          else return ()
+        _ <- runMonitor amount interval (Just stop)
+        I.defaultLayout [I.whamlet| |]
 
 getHomeR :: I.Handler I.Html
 getHomeR = do
     app <- I.getYesod
-    --_ <- runMonitor 70 5 (Just 30)
-    --eitems <- toExtendedItems <$> I.runDB itemsFromDB
-    --I.liftIO $ flip mapM_ eitems (\g -> print g >> putStrLn "\n\n")
-    items <- (I.runDB $ select $
-                        from $ \item -> do
-                        return item) :: I.Handler [Entity Item]
-    let itemsData = juliusCombineByComma (makeItemsData (map entityVal items))
+    items <- toFullItems <$> I.runDB itemsFromDB
+    let itemsData = juliusCombineByComma (makeItemsData items)
     I.defaultLayout $ do
         I.setTitle "Welcome To Yesod!"
         $(I.widgetFile "home/home")
     where juliusCombineByComma = foldr (\a b -> a <> [I.julius| , |] <> b) mempty
 
           makeItemsData [] = []
-          makeItemsData (item:xs) =
+          makeItemsData (FullItem item kids parts:xs) =
             let (Object valItem) = toJSON item
                 columns = flip map (HM.toList valItem) $ \(field, value) ->
                             let field' = T.toLower . T.replace "item" "" $ field
@@ -66,15 +68,12 @@ getHomeR = do
 
 type ItemMap a b = Map (Entity Item) [Entity b]
 
-data ExtendedItem = ExtendedItem Item [I.Kid] [I.Part]
-  deriving (Show)
-
 -- FIXME: Naive implementation. Refactoring is needed.
-toExtendedItems :: (ItemMap Item I.Kid, ItemMap Item I.Part) -> [ExtendedItem]
-toExtendedItems (a, b) = worker (M.toList a) (M.toList b)
+toFullItems :: (ItemMap Item I.Kid, ItemMap Item I.Part) -> [FullItem]
+toFullItems (a, b) = worker (M.toList a) (M.toList b)
   where worker [] _ = []
         worker ((item, kids):xs) partsMap = flip (:) (worker xs partsMap) $
-          ExtendedItem (entityVal item) (map entityVal kids) $
+          FullItem (entityVal item) (map entityVal kids) $
             (map entityVal . fromJust $ lookup item partsMap)
 
 itemsFromDB :: I.SqlPersistT I.Handler (ItemMap Item I.Kid, ItemMap Item I.Part)

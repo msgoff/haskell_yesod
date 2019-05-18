@@ -10,8 +10,10 @@
 {-# LANGUAGE RankNTypes           #-}
 
 module Parser.Parser
-  ( discoverItems
+  ( FullItem(..)
+  , discoverItems
   , runMonitor
+  , fullItemsFromFile
   ) where
 
 import           Control.Monad                      (forever, void)
@@ -28,8 +30,8 @@ import qualified Data.Text                  as T    (pack)
 import           Data.Text                          (Text)
 import           Data.Proxy                         (Proxy(..))
 import qualified Data.ByteString.Lazy.Char8 as BSL  (unpack)
-import qualified Data.HashMap.Strict        as HM   (insert, member)
-import qualified Data.Vector                as V    (toList)
+import qualified Data.HashMap.Strict        as HM   (insert, member, lookup)
+import qualified Data.Vector                as V    (toList, map)
 import           Data.Vector                        (Vector)
 import qualified Data.Maybe                 as M    (isJust, maybe, catMaybes)
 import qualified Data.Char                  as C    (toUpper)
@@ -58,6 +60,16 @@ type URL = String
 type MaxItemId  = Int
 type Interval = Int
 type ChunkSize = Int
+
+-- Represents an Item that is ready to be stored in a database
+-- and to form a FullItem.
+type RawItem = (Item, Value)
+
+data FullItem = FullItem Item [Kid] [Part]
+  deriving (Show)
+
+-- Monitor Coroutine
+----------------------------------------------------------------------------------------------------
 
 runMonitor :: ChunkSize -> Interval -> Maybe Interval -> Handler ThreadId
 runMonitor itemsAmount interval releaseAfter = do
@@ -97,6 +109,10 @@ mkDiscoverStep itemsAmount = do
             [] -> return Nothing
             _ -> return $ Just (I.itemApiId . entityVal . head $ res)
 
+
+-- Items Scraping
+----------------------------------------------------------------------------------------------------
+
 -- Asks for the current largest item id and
 -- makes a particular number of steps backward from that point.
 -- Parameter 'start' stays for maxitem when defined.
@@ -113,8 +129,8 @@ discoverItems logger start itemsAmount = do
                                     Nothing -> return Nothing
                                     Just key -> do
                                       let extendedValItem = extendObjectWithModelId key valItem
-                                      kids <- liftIO $ parseKids logger extendedValItem
-                                      parts <- liftIO $ parseParts logger extendedValItem
+                                          kids = parseKids extendedValItem
+                                          parts = parseParts extendedValItem
                                       mapM_ P.insertUnique kids
                                       mapM_ P.insertUnique parts
                                       return (Just item'))
@@ -134,6 +150,10 @@ getCurrentMaxitem =
         putStrLn "MAX ITEM:"
         print maxitemId
         return maxitemId
+
+
+-- Items Parsing
+----------------------------------------------------------------------------------------------------
 
 instance ToJSON Item where
 instance FromJSON Item where
@@ -161,32 +181,6 @@ instance FromJSON Item where
           toUTC = Time.posixSecondsToUTCTime
   parseJSON _ = error "Not an object."
 
-parseItem :: Logger -> URL -> IO (Maybe (Item, Value))
-parseItem logger url = do
-  mResp <- flip catch (\(JSONError _) -> return Nothing) $
-             Just <$> (R.asJSON =<< R.get url :: IO (Response Object))
-  case mResp of
-    Nothing -> loggerPutStr logger "Bad response.\n" >> return Nothing
-    Just resp ->
-      let respBody = HM.insert "url" (String . fromString $ url) (resp L.^. R.responseBody)
-          itemObject = Object respBody
-      in do item <- _parseMaybe logger itemObject (Proxy :: Proxy Item)
-            return $ case item of
-                       Nothing -> Nothing
-                       Just item' -> Just (item', itemObject)
-
-extendObjectWithModelId :: Key Item -> Value -> Value
-extendObjectWithModelId dbItemKey (Object itemObject) =
-  let (PersistInt64 keyVal) = head (keyToValues dbItemKey)
-      valItem = Object $ HM.insert "model-id" (String . fromString . show $ keyVal) itemObject
-  in valItem
-
-_getItemId :: Object -> Parser (Key Item)
-_getItemId obj = do
-  (Right itemApiId) <- (\key -> keyFromValues [(PersistInt64 . read . fromString $ key)]) <$>
-                         obj .: "model-id"
-  return itemApiId
-
 instance {-# OVERLAPPING #-} FromJSON [Kid] where
   parseJSON (Object obj) = do
     itemApiId <- _getItemId obj
@@ -199,18 +193,89 @@ instance {-# OVERLAPPING #-} FromJSON [Part] where
     parts <- V.toList <$> obj .: "parts"
     return $ map (Part itemApiId) parts
 
-parseKids :: Logger -> Value -> IO [Kid]
-parseKids logger valItem@(Object itemObject)
-  | not (HM.member "kids" itemObject) = return []
-  | otherwise = maybe [] id <$> _parseMaybe logger valItem (Proxy :: Proxy [Kid])
+parseItem :: Logger -> URL -> IO (Maybe (Item, Value))
+parseItem logger url = do
+  mResp <- flip catch (\(JSONError _) -> return Nothing) $
+             Just <$> (R.asJSON =<< R.get url :: IO (Response Object))
+  case mResp of
+    Nothing -> loggerPutStr logger "Bad response.\n" >> return Nothing
+    Just resp ->
+      let respBody = HM.insert "url" (String . fromString $ url) (resp L.^. R.responseBody)
+          itemObject = Object respBody
+          item = _parseMaybe itemObject (Proxy :: Proxy Item)
+      in return $ case item of
+                    Nothing -> Nothing
+                    Just item' -> Just (item', itemObject)
 
-parseParts :: Logger -> Value -> IO [Part]
-parseParts logger valItem@(Object itemObject)
-  | not (HM.member "parts" itemObject) = return []
-  | otherwise = maybe [] id <$> _parseMaybe logger valItem (Proxy :: Proxy [Part])
+parseKids :: Value -> [Kid]
+parseKids valItem@(Object itemObject)
+  | not (HM.member "kids" itemObject) = []
+  | otherwise = maybe [] id $ _parseMaybe valItem (Proxy :: Proxy [Kid])
 
-_parseMaybe :: forall proxy a. (FromJSON a) => Logger -> Value -> proxy a -> IO (Maybe a)
-_parseMaybe logger val _ =
+parseParts :: Value -> [Part]
+parseParts valItem@(Object itemObject)
+  | not (HM.member "parts" itemObject) = []
+  | otherwise = maybe [] id $ _parseMaybe valItem (Proxy :: Proxy [Part])
+
+_parseMaybe :: forall proxy a. (FromJSON a) => Value -> proxy a -> Maybe a
+_parseMaybe val _ =
   case (parseEither parseJSON val) of
-    Left e  -> loggerPutStr logger (fromString e <> "\n") >> return Nothing
-    Right v -> return $ Just v
+    Left e  -> Nothing
+    Right v -> Just v
+
+extendObjectWithModelId :: Key Item -> Value -> Value
+extendObjectWithModelId dbItemKey (Object itemObject) =
+  let (PersistInt64 keyVal) = head (keyToValues dbItemKey)
+      valItem = Object $ HM.insert "model-id" (String . fromString . show $ keyVal) itemObject
+  in valItem
+
+_getItemId :: Object -> Parser (Key Item)
+_getItemId obj = do
+  (Right itemApiId) <- (\key -> keyFromValues [(PersistInt64 . read . fromString $ key)]) <$>
+                        obj .: "model-id"
+  return itemApiId
+
+jsonToRawItem :: Object -> URL -> Maybe RawItem
+jsonToRawItem itemObject url =
+  let extendedObject = HM.insert "url" (String . fromString $ url) itemObject
+      valItem = Object extendedObject
+      item =  _parseMaybe valItem (Proxy :: Proxy Item)
+  in case item of
+       Nothing -> Nothing
+       Just item' -> Just (item', valItem)
+
+rawItemsFromFile :: FilePath -> IO (Maybe [RawItem])
+rawItemsFromFile fp = do
+  mValue <- decodeFileStrict fp :: IO (Maybe Value)
+  return $ case mValue of
+             Nothing -> Nothing
+             Just (Array itemsArray) -> Just $ M.catMaybes
+                                             . V.toList
+                                             . V.map worker $ itemsArray
+             Just _ -> Nothing
+  where worker (Object itemObject) =
+          let itemId = HM.lookup "id" itemObject
+          in case itemId of
+            Nothing -> Nothing
+            Just itemId' ->
+              let url = "https://hacker-news.firebaseio.com/v0/item/" ++ show itemId' ++ ".json"
+              in jsonToRawItem itemObject url
+        worker _ = Nothing
+
+fullItemsFromFile :: FilePath -> DB (Maybe [FullItem])
+fullItemsFromFile fp = do
+  rawItems <- liftIO $ rawItemsFromFile fp
+  case rawItems of
+    Nothing -> return Nothing
+    Just rawItems' -> Just . M.catMaybes <$> mapM worker rawItems'
+  where worker :: RawItem -> DB (Maybe FullItem)
+        worker (item, value) = do
+          dbItemKey <- P.insertUnique item
+          case dbItemKey of
+            Nothing -> return Nothing
+            Just key ->
+              let extendedValue = extendObjectWithModelId key value
+                  kids = parseKids extendedValue
+                  parts = parseParts extendedValue
+              in do mapM_ P.insertUnique kids >> mapM_ P.insertUnique parts
+                    return . Just $ FullItem item kids parts
