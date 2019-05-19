@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings            #-}
+{-# LANGUAGE ExtendedDefaultRules         #-}
 {-# LANGUAGE MultiParamTypeClasses        #-}
 {-# LANGUAGE TypeFamilies                 #-}
 {-# LANGUAGE FlexibleContexts             #-}
@@ -10,10 +11,13 @@ module Handler.Home where
 import qualified Import    as I
 import           Model                              (Item(..))
 
+import           Text.Julius                        (RawJS (..))
 import           System.Directory                   (doesFileExist)
 import           Control.Monad                      (void)
 import           Control.Concurrent                 (threadDelay, killThread, forkIO)
+import           Data.Proxy                         (Proxy(..))
 import           Data.Data                          (Data(..), constrFields, dataTypeConstrs)
+import           Data.Text                          (Text)
 import qualified Data.Text as T                     (replace, pack, toLower)
 import           Data.Aeson
 import           Data.Maybe                         (catMaybes, fromJust)
@@ -24,6 +28,8 @@ import qualified Data.HashMap.Strict as HM          (toList)
 import           Database.Esqueleto
 
 import           Parser.Parser
+
+default (Text)
 
 getPullR :: Int -> Int -> Int -> I.Handler I.Html
 getPullR amount interval stop =
@@ -40,23 +46,37 @@ getHomeR = do
     app <- I.getYesod
     items <- toFullItems <$> I.runDB itemsFromDB
     let itemsData = juliusCombineByComma (makeItemsData items)
+        itemColumnDefinitions = juliusCombineByComma [ columnDefinitions
+                                                     , mkDefList "Kids"
+                                                     , mkDefList "Parts" ]
     I.defaultLayout $ do
         I.setTitle "Welcome To Yesod!"
         $(I.widgetFile "home/home")
     where juliusCombineByComma = foldr (\a b -> a <> [I.julius| , |] <> b) mempty
 
+          mkDef hdr = [I.julius| { headerName: #{hdr}, field: #{T.toLower hdr} } |]
+          mkDefWithRenderer hdr cellRenderer =
+            [I.julius| { headerName: #{hdr},
+                         field: #{T.toLower hdr},
+                         cellRenderer: #{cellRenderer} } |]
+          mkDefList = flip mkDefWithRenderer "listCellRenderer"
+
           makeItemsData [] = []
           makeItemsData (FullItem item kids parts:xs) =
             let (Object valItem) = toJSON item
-                columns = flip map (HM.toList valItem) $ \(field, value) ->
+                columns = buildListField "kids" (map I.kidApiId kids)
+                        : buildListField "parts" (map I.partApiId parts)
+                        : (flip map (HM.toList valItem) $ \(field, value) ->
                             let field' = T.toLower . T.replace "item" "" $ field
                             in case value of
                                  String a -> [I.julius| #{field'}: #{a} |]
                                  Bool a -> [I.julius| #{field'}: #{show a} |]
                                  Number a -> [I.julius| #{field'}: #{show a} |]
-                                 _ -> [I.julius| #{field}: "" |]
+                                 _ -> [I.julius| #{field}: "" |])
                 row      = [I.julius| { |] <> juliusCombineByComma columns <> [I.julius| } |]
             in row : makeItemsData xs
+            where buildListField field xs = let listJS = rawJS (show xs)
+                                            in [I.julius| #{field}: #{listJS} |]
 
           columnDefinitions =
             let item = dataTypeOf (undefined :: Item)
@@ -64,7 +84,6 @@ getHomeR = do
                 itemPrefix = "item"
                 noPrefixFields = map (T.replace itemPrefix "" . T.pack) itemFields
             in juliusCombineByComma (map mkDef noPrefixFields)
-            where mkDef hdr = [I.julius| { headerName: #{hdr}, field: #{T.toLower hdr} } |]
 
 type ItemMap a b = Map (Entity Item) [Entity b]
 

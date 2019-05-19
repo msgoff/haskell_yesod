@@ -1,10 +1,26 @@
-let columnDefs = [ ^{columnDefinitions} ];
+let columnDefs = [ ^{itemColumnDefinitions} ];
 let rowData = [ ^{itemsData} ];
 
 let gridOptions = {
   columnDefs: columnDefs,
-  rowData: rowData
+  rowData: rowData,
+  components: {
+    'listCellRenderer': ListCellRenderer
+  }
 };
 
-let eGridDiv = document.querySelector('#items-grid');
-new agGrid.Grid(eGridDiv, gridOptions);
+function ListCellRenderer() {}
+
+ListCellRenderer.prototype.init = function(params) {
+  this.eGui = document.createElement('span');
+  this.eGui.innerHTML = params.value.join(', ');
+};
+
+ListCellRenderer.prototype.getGui = function() {
+  return this.eGui;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  let eGridDiv = document.querySelector('#items-grid');
+  new agGrid.Grid(eGridDiv, gridOptions);
+});
