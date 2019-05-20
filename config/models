@@ -1,20 +1,26 @@
 Item
-  apiId Text
+  apiId Int
   deleted Bool default=False
   itemType ItemType
-  username Text
+  username Text Maybe
   created UTCTime
   text Text Maybe
   dead Bool default=False
   parent Text Maybe
-  pool Text Maybe
+  poll Int Maybe
   url Text
   score Int Maybe
   title Text Maybe
+  descendants Int Maybe
   UniqueApiId apiId
-  deriving Show Data Typeable Generic
+  deriving Show Eq Data Typeable Generic
 
 Kid
   itemId ItemId
-  apiId Text
+  apiId Int
+  deriving Show
+
+Part
+  itemId ItemId
+  apiId Int
   deriving Show

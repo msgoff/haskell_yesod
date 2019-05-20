@@ -116,10 +116,7 @@ instance Yesod App where
         -> Handler AuthResult
     -- Routes not requiring authentication.
     --isAuthorized (AuthR _) _ = return Authorized
-    isAuthorized HomeR _ = return Authorized
-    isAuthorized FaviconR _ = return Authorized
-    isAuthorized RobotsR _ = return Authorized
-    isAuthorized (StaticR _) _ = return Authorized
+    isAuthorized _ _ = return Authorized
 
     -- This function creates static content files in the static folder
     -- and names them based on a hash of their content. This allows
