@@ -1,0 +1,10 @@
+.git
+.gitignore
+
+.stack-work
+README.md
+yesod-devel
+static/tmp
+
+Dockerfile
+docker-compose.yaml
