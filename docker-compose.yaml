@@ -1,0 +1,27 @@
+version: "3.7"
+services:
+  db:
+    image: postgres:11.2
+    restart: always
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432"
+
+  web:
+    build: .
+    image: errfrom/hn:latest
+    restart: on-failure
+    environment:
+      - HOST=0.0.0.0
+      - PGUSER=postgres
+      - PGPASS=some
+      - PGHOST=db
+    command: ./run-server
+    ports:
+      - "3000:3000"
+    links:
+      - db
+
+volumes:
+  pgdata:
