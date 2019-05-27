@@ -63,6 +63,7 @@ data AppSettings = AppSettings
 
     , appAuthDummyLogin         :: Bool
     -- ^ Indicate if auth dummy login should be enabled.
+    , appLocalDataDir           :: Maybe FilePath
     }
 
 instance FromJSON AppSettings where
@@ -93,6 +94,7 @@ instance FromJSON AppSettings where
         appAnalytics              <- o .:? "analytics"
 
         appAuthDummyLogin         <- o .:? "auth-dummy-login"      .!= dev
+        appLocalDataDir           <- o .:? "local-data-dir" 
 
         return AppSettings {..}
 

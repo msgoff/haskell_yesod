@@ -13,7 +13,6 @@ import           Model                              (Item(..))
 
 import           Text.Julius                        (RawJS (..))
 import           System.Directory                   (doesFileExist)
-import           Control.Monad                      (void)
 import           Control.Concurrent                 (threadDelay, killThread, forkIO)
 import           Data.Proxy                         (Proxy(..))
 import           Data.Data                          (Data(..), constrFields, dataTypeConstrs)
@@ -32,14 +31,14 @@ import           Parser.Parser
 default (Text)
 
 getPullR :: Int -> Int -> Int -> I.Handler I.Html
-getPullR amount interval stop =
-  let fp = "data.json" -- TODO: Config.
-  in do jsonExists <- I.liftIO $ doesFileExist fp
-        if jsonExists
-          then void . I.runDB $ fullItemsFromFile fp
-          else return ()
-        _ <- runMonitor amount interval (Just stop)
-        I.defaultLayout [I.whamlet| |]
+getPullR amount interval stop = do
+  localData <- I.appLocalData <$> I.getYesod
+  jsonExists <- I.liftIO $ or <$> mapM doesFileExist localData
+  if jsonExists
+    then I.runDB $ mapM_ fullItemsFromFile localData
+    else return ()
+  _ <- runMonitor amount interval (Just stop)
+  I.defaultLayout [I.whamlet| |]
 
 getHomeR :: I.Handler I.Html
 getHomeR = do

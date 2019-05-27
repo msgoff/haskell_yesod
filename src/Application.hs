@@ -34,6 +34,8 @@ import Network.Wai.Middleware.RequestLogger (Destination (Logger),
                                              IPAddrSource (..),
                                              OutputFormat (..), destination,
                                              mkRequestLogger, outputFormat)
+import System.Directory                     (getDirectoryContents)
+import System.FilePath.Posix                (isExtensionOf)
 import System.Log.FastLogger                (defaultBufSize, newFileLoggerSet,
                                              newStdoutLoggerSet, toLogStr)
 
@@ -64,6 +66,10 @@ makeFoundation appSettings = do
         (if appMutableStatic appSettings then staticDevel else static)
         (appStaticDir appSettings)
 
+    appLocalData <- case (appLocalDataDir appSettings) of
+                      Just path -> jsonsFromDir path
+                      Nothing -> jsonsFromDir "."
+
     -- We need a log function to create a connection pool. We need a connection
     -- pool to create our foundation. And we need our foundation to get a
     -- logging function. To get out of this loop, we initially create a
@@ -88,6 +94,11 @@ makeFoundation appSettings = do
     let appConnPool = pool
     -- Return the foundation
     return App{..}
+
+    where jsonsFromDir path = do
+            dirFiles <- getDirectoryContents path
+            return $ filter (isExtensionOf "json") dirFiles
+
 
 -- | Convert our foundation to a WAI Application by calling @toWaiAppPlain@ and
 -- applying some additional middlewares.
