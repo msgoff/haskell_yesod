@@ -35,7 +35,7 @@ import Network.Wai.Middleware.RequestLogger (Destination (Logger),
                                              OutputFormat (..), destination,
                                              mkRequestLogger, outputFormat)
 import System.Directory                     (getDirectoryContents)
-import System.FilePath.Posix                (isExtensionOf)
+import System.FilePath.Posix                ((</>), isExtensionOf)
 import System.Log.FastLogger                (defaultBufSize, newFileLoggerSet,
                                              newStdoutLoggerSet, toLogStr)
 
@@ -97,7 +97,8 @@ makeFoundation appSettings = do
 
     where jsonsFromDir path = do
             dirFiles <- getDirectoryContents path
-            return $ filter (isExtensionOf "json") dirFiles
+            let fullDirFiles = flip map dirFiles $ \x -> path </> x
+            return $ filter (isExtensionOf "json") fullDirFiles
 
 
 -- | Convert our foundation to a WAI Application by calling @toWaiAppPlain@ and

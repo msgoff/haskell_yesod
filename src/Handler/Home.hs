@@ -30,15 +30,21 @@ import           Parser.Parser
 
 default (Text)
 
-getPullR :: Int -> Int -> Int -> I.Handler I.Html
-getPullR amount interval stop = do
+getPullLocalR :: I.Handler I.Html
+getPullLocalR = do
   localData <- I.appLocalData <$> I.getYesod
+  I.liftIO $ print localData
   jsonExists <- I.liftIO $ or <$> mapM doesFileExist localData
+  I.liftIO $ print jsonExists
   if jsonExists
     then I.runDB $ mapM_ fullItemsFromFile localData
     else return ()
-  _ <- runMonitor amount interval (Just stop)
   I.defaultLayout [I.whamlet| |]
+
+getPullR :: Int -> Int -> Int -> I.Handler I.Html
+getPullR amount interval stop = do
+  _ <- runMonitor amount interval (Just stop)
+  getPullLocalR
 
 getHomeR :: I.Handler I.Html
 getHomeR = do
