@@ -13,6 +13,7 @@ import           Model                              (Item(..))
 
 import           Text.Julius                        (RawJS (..))
 import           System.Directory                   (doesFileExist)
+import qualified Control.Concurrent.Async   as A    (mapConcurrently_)
 import           Control.Concurrent                 (threadDelay, killThread, forkIO)
 import           Data.Proxy                         (Proxy(..))
 import           Data.Data                          (Data(..), constrFields, dataTypeConstrs)
@@ -36,8 +37,9 @@ getPullLocalR = do
   I.liftIO $ print localData
   jsonExists <- I.liftIO $ or <$> mapM doesFileExist localData
   I.liftIO $ print jsonExists
+  runInnerHandler <- I.handlerToIO
   if jsonExists
-    then I.runDB $ mapM_ fullItemsFromFile localData
+    then I.liftIO $ A.mapConcurrently_ (runInnerHandler . I.runDB . fullItemsFromFile) localData
     else return ()
   I.defaultLayout [I.whamlet| |]
 
@@ -50,6 +52,7 @@ getHomeR :: I.Handler I.Html
 getHomeR = do
     app <- I.getYesod
     items <- toFullItems <$> I.runDB itemsFromDB
+    I.liftIO $ putStrLn "GOT ITEMS FROM DB"
     let itemsData = juliusCombineByComma (makeItemsData items)
         itemColumnDefinitions = juliusCombineByComma [ columnDefinitions
                                                      , mkDefList "Kids"

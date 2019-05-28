@@ -37,7 +37,7 @@ import           Data.ByteString.Lazy.Char8         (ByteString)
 import qualified Data.HashMap.Strict        as HM   (insert, member, lookup)
 import qualified Data.Vector                as V    (toList, map)
 import           Data.Vector                        (Vector)
-import qualified Data.Maybe                 as M    (isJust, maybe, catMaybes)
+import qualified Data.Maybe                 as M    (isJust, maybe, catMaybes, listToMaybe)
 import qualified Data.Char                  as C    (toUpper)
 import qualified Data.Time.Clock.POSIX      as Time (posixSecondsToUTCTime)
 
@@ -165,7 +165,9 @@ instance FromJSON Item where
     itemApiId <- obj .: "id"
     itemDeleted <- obj `getBool` "deleted"
     itemTypeText <- obj .: "type"
-    let itemItemType = read $ ((C.toUpper . head $ itemTypeText) : tail itemTypeText) :: ItemType
+    let maybeRead = fmap fst . M.listToMaybe . reads
+    let capitalizedItemTypeText = (C.toUpper . head $ itemTypeText) : tail itemTypeText
+    let itemItemType = maybeRead capitalizedItemTypeText :: Maybe ItemType
     itemUsername <- obj .:? "by"
     itemCreated <- toUTC <$> obj .: "time"
     itemText <- obj .:? "text"
@@ -288,6 +290,7 @@ fullItemsFromFile fp = do
   where worker :: RawItem -> DB (Maybe FullItem)
         worker (item, value) = do
           dbItemKey <- P.insertUnique item
+          liftIO $ print (itemApiId item)
           case dbItemKey of
             Nothing -> return Nothing
             Just key ->
