@@ -1,7 +1,7 @@
 Item
   apiId Int
   deleted Bool default=False
-  itemType ItemType
+  itemType ItemType Maybe
   username Text Maybe
   created UTCTime
   text Text Maybe

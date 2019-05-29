@@ -1,7 +1,9 @@
-/static                                   StaticR  Static appStatic
+/static                                   StaticR    Static appStatic
 
-/favicon.ico                              FaviconR GET
-/robots.txt                               RobotsR  GET
+/favicon.ico                              FaviconR   GET
+/robots.txt                               RobotsR    GET
 
-/                                         HomeR    GET
-/pull/amount/#Int/interval/#Int/stop/#Int PullR    GET
+/                                         HomeR      GET
+/pull                                     PullLocalR GET
+/pull/amount/#Int/interval/#Int/stop/#Int PullR      GET
+/ajax/getRows                             GetRowsR   POST

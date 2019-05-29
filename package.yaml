@@ -53,6 +53,7 @@ dependencies:
 - time
 - monad-coroutine
 - async
+- filepath
 
 # The library contains all of our application code. The executable
 # defined below is just a thin wrapper.

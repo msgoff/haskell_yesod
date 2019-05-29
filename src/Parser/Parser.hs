@@ -26,19 +26,21 @@ import Control.Monad.Coroutine.SuspensionFunctors   (Yield(..), yield)
 import           Control.Exception                  (catch)
 import           Data.String                        (IsString(..))
 import           Data.IORef                         (newIORef, readIORef, atomicWriteIORef)
+import qualified Data.Text.Lazy.IO          as LT   (readFile)
+import qualified Data.Text.Lazy             as LT   (splitOn, cons, last, unpack, null)
 import qualified Data.Text                  as T    (pack)
 import           Data.Text                          (Text)
 import           Data.Proxy                         (Proxy(..))
-import qualified Data.ByteString.Lazy.Char8 as BSL  (unpack)
+import qualified Data.ByteString.Lazy.Char8 as BSL  (unpack, pack)
+import           Data.ByteString.Lazy.Char8         (ByteString)
 import qualified Data.HashMap.Strict        as HM   (insert, member, lookup)
 import qualified Data.Vector                as V    (toList, map)
-import           Data.Vector                        (Vector)
-import qualified Data.Maybe                 as M    (isJust, maybe, catMaybes)
+import qualified Data.Maybe                 as M    (isJust, maybe, catMaybes, listToMaybe)
 import qualified Data.Char                  as C    (toUpper)
 import qualified Data.Time.Clock.POSIX      as Time (posixSecondsToUTCTime)
 
 import qualified Control.Lens               as L    ((^.))
-import           Data.Aeson
+import           Data.Aeson                 as A
 import           Data.Aeson.Types                   (Value(..), Parser, parseEither)
 import qualified Network.Wreq               as R
 import           Network.Wreq                       (Response, JSONError(..))
@@ -161,7 +163,9 @@ instance FromJSON Item where
     itemApiId <- obj .: "id"
     itemDeleted <- obj `getBool` "deleted"
     itemTypeText <- obj .: "type"
-    let itemItemType = read $ ((C.toUpper . head $ itemTypeText) : tail itemTypeText) :: ItemType
+    let maybeRead = fmap fst . M.listToMaybe . reads
+    let capitalizedItemTypeText = (C.toUpper . head $ itemTypeText) : tail itemTypeText
+    let itemItemType = maybeRead capitalizedItemTypeText :: Maybe ItemType
     itemUsername <- obj .:? "by"
     itemCreated <- toUTC <$> obj .: "time"
     itemText <- obj .:? "text"
@@ -247,12 +251,25 @@ jsonToRawItem itemObject url =
 rawItemsFromFile :: FilePath -> IO (Maybe [RawItem])
 rawItemsFromFile fp = do
   mValue <- decodeFileStrict fp :: IO (Maybe Value)
-  return $ case mValue of
-             Nothing -> Nothing
-             Just (Array itemsArray) -> Just $ M.catMaybes
+  case mValue of
+    Nothing -> do -- Attempt to fix the file.
+      fileContents <- LT.readFile fp
+      return $ if (LT.null fileContents)
+               then Nothing
+               else Just
+                  . M.catMaybes
+                  . map worker
+                  . M.catMaybes
+                  . map (A.decode :: ByteString -> Maybe Value)
+                  . map (BSL.pack . LT.unpack)
+                  . filter (\x -> LT.last x == '}')
+                  . tail
+                  . flip map (LT.splitOn "\n{\n" fileContents) $ \x -> '{' `LT.cons` x
+    Just (Array itemsArray) -> return $ Just $ M.catMaybes
                                              . V.toList
                                              . V.map worker $ itemsArray
-             Just _ -> Nothing
+    Just itemVal@(Object _) -> return $ fmap (:[]) $ worker itemVal
+    Just _ -> return Nothing
   where worker (Object itemObject) =
           let itemId = HM.lookup "id" itemObject
           in case itemId of
@@ -271,6 +288,7 @@ fullItemsFromFile fp = do
   where worker :: RawItem -> DB (Maybe FullItem)
         worker (item, value) = do
           dbItemKey <- P.insertUnique item
+          liftIO $ print (itemApiId item)
           case dbItemKey of
             Nothing -> return Nothing
             Just key ->
