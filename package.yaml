@@ -54,7 +54,6 @@ dependencies:
 - monad-coroutine
 - async
 - filepath
-- split
 
 # The library contains all of our application code. The executable
 # defined below is just a thin wrapper.

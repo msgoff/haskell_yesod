@@ -1,9 +1,9 @@
-let columnDefs = [ ^{itemColumnDefinitions} ];
-let rowData = [ ^{itemsData} ];
-
 let gridOptions = {
-  columnDefs: columnDefs,
-  rowData: rowData,
+  columnDefs: [ ^{itemColumnDefinitions} ],
+  rowModelType: 'infinite',
+  infiniteInitialRowCount: 1000,
+  pagination: true,
+  paginationPageSize: 100,
   components: {
     'listCellRenderer': ListCellRenderer
   }
@@ -23,4 +23,21 @@ ListCellRenderer.prototype.getGui = function() {
 document.addEventListener('DOMContentLoaded', function() {
   let eGridDiv = document.querySelector('#items-grid');
   new agGrid.Grid(eGridDiv, gridOptions);
+  let lastRow = -1;
+  let dataSource = {
+    getRows: function (params) {
+      $.ajax({
+        type: 'POST',
+        url: 'ajax/getRows',
+        dataType: 'text',
+        data: {startRow: params.startRow, endRow: params.endRow},
+        success: function(rowsThisPageText) {
+          let rowsThisPage = eval(rowsThisPageText);
+          lastRow += rowsThisPage.length;
+          params.successCallback(rowsThisPage, -1);
+        }
+      })
+    }
+  };
+  gridOptions.api.setDatasource(dataSource);
 });

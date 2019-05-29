@@ -6,3 +6,4 @@
 /                                         HomeR      GET
 /pull                                     PullLocalR GET
 /pull/amount/#Int/interval/#Int/stop/#Int PullR      GET
+/ajax/getRows                             GetRowsR   POST
