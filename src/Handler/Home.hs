@@ -20,10 +20,13 @@ import           Data.Data                          (Data(..), constrFields, dat
 import           Data.Text.Lazy                     (Text)
 import qualified Data.Text as T                     (replace, pack, unpack, toLower)
 import           Data.Aeson          as A
+import           Data.Aeson.Types    as A           (ToJSON(..), Value)
 import           Data.Maybe                         (catMaybes, fromJust)
 import qualified Data.Map            as M           (fromAscListWith, toList)
 import           Data.Map                           (Map)
-import qualified Data.HashMap.Strict as HM          (toList)
+import qualified Data.HashMap.Strict as HM          (toList, adjust)
+import           Data.Time.Format                   (formatTime, defaultTimeLocale)
+import           Data.Time.Clock                    (UTCTime)
 
 import           Database.Esqueleto
 
@@ -48,17 +51,28 @@ getPullR amount interval stop = do
 
 juliusCombineByComma = foldr (\a b -> a <> [I.julius| , |] <> b) mempty
 
+class ToJSON t => ToJSONExtended t where
+  toJSONExtended :: t -> A.Value
+  toJSONExtended = toJSON
+
+instance ToJSONExtended UTCTime where
+  toJSONExtended = toJSON . formatTime defaultTimeLocale "%d/%m/%Y %T"
+
 postGetRowsR :: I.Handler Text
 postGetRowsR = do
   (Just startRow) <- I.lookupPostParam "startRow"
   (Just endRow) <- I.lookupPostParam "endRow"
   items <- fmap toFullItems . I.runDB $ itemsFromDB (read . T.unpack $ startRow) (read . T.unpack $ endRow)
+  let (FullItem a _ _) = head items
+  I.liftIO $ print (toJSON a)
   let itemsData = [I.julius| [ |] <> juliusCombineByComma (makeItemsData items) <> [I.julius| ] |]
   let js = renderJavascriptUrl (\_ _ -> undefined) itemsData
   return js
   where makeItemsData [] = []
         makeItemsData (FullItem item kids parts:xs) =
-          let (Object valItem) = toJSON item
+          let (Object valItem') = toJSON item
+              timeFormatted = toJSONExtended (itemCreated item)
+              valItem = HM.adjust (\_ -> timeFormatted) "itemCreated" valItem'
               columns = buildListField "kids" (map I.kidApiId kids)
                       : buildListField "parts" (map I.partApiId parts)
                       : (flip map (HM.toList valItem) $ \(field, value) ->
