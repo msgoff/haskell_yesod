@@ -3,7 +3,7 @@ Item
   deleted Bool default=False
   itemType ItemType Maybe
   username Text Maybe
-  created UTCTime timestamp without timezone
+  created UTCTime
   text Text Maybe
   dead Bool default=False
   parent Text Maybe
